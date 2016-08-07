@@ -10,29 +10,33 @@
 <meta http-equiv="Content-Script-Type" content="text/javascript">
 </head>
 <body onload="onLoad()" onhashchange="process_opts()">
-<table class="top" id="raceinfo">
-  <tr class="header">
-    <th id="run" colspan=2>The Run Name Goes Here</th>
-  </tr>
-  <tr class="bigclock"><td><table class="bigclock">
-        <col class="laps"><col class="time">
-        <tr><td id="laps">--</td><td id="elapsed">--:--:--</td></tr>
-        <tr><th>Laps</th><th>Time Elapsed</th></tr>
-        <tr><td id="laps2go">----</td><td id="timeleft">--:--:--</td></tr>
-        <tr><th>Laps to Go</th><th>Time Remaining</th></tr>
-  </table></td></tr>
-  <tr class="footer"><td><table class="footer">
-        <col class="leaders"><col class="tod">
-        <tr><th colspan="2"><span id="error">Connection lost</span></td></tr>
-        <tr>
-          <th class="leaders">Leaders: <span id="leaders"></span></th>
-          <th class="tod"><span id="tod">--:--:--</span>
-          </th>
-        </tr>
-  </table></td></tr>
-</table>
-<table class="top" id="bigtod">
-  <tr><td><span id="tod2">00:00:00</span></td></tr>
-  <tr><th><span id="date">Today</span></th></tr>
-</table>
+<div id="raceinfo">
+  <table class="top raceinfo">
+    <tr class="header">
+      <th id="run" colspan=2>The Run Name Goes Here</th>
+    </tr>
+    <tr class="bigclock"><td><table class="bigclock">
+          <col class="laps"><col class="time">
+          <tr><td id="laps">--</td><td id="elapsed">--:--:--</td></tr>
+          <tr><th>Laps</th><th>Time Elapsed</th></tr>
+          <tr><td id="laps2go">----</td><td id="timeleft">--:--:--</td></tr>
+          <tr><th>Laps to Go</th><th>Time Remaining</th></tr>
+    </table></td></tr>
+    <tr class="footer"><td><table class="footer">
+          <col class="leaders"><col class="tod">
+          <tr><th colspan="2"><span id="error">Connection lost</span></td></tr>
+          <tr>
+            <th class="leaders">Leaders: <span id="leaders"></span></th>
+            <th class="tod"><span id="tod">--:--:--</span>
+            </th>
+          </tr>
+    </table></td></tr>
+  </table>
+</div>
+<div id="bigtod">
+  <table class="top bigtod">
+    <tr><td><span id="tod2">00:00:00</span></td></tr>
+    <tr><th><span id="date">Today</span></th></tr>
+  </table>
+</div>
 </body></html>

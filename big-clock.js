@@ -11,6 +11,8 @@ var f_leaders  = document.getElementById("leaders");
 var f_error    = document.getElementById("error");
 
 var options = new Map();
+var display_mode;
+var display_modes = [ "raceinfo", "bigtod" ]
 var maxLeaders = 3;
 var cars = new Object;
 var leaders = [];
@@ -28,10 +30,12 @@ function process_opts() {
   });
   options = opts;
 
-  if (options.get("mode") == "tod") {
-    document.getElementById("raceinfo").style.display = "none";
-  } else {
-    document.getElementById("bigtod").style.display = "none";
+  if (options.has("mode")) display_mode = options.get("mode");
+  else display_mode = "raceinfo";
+  for (var mode of display_modes) {
+    var e = document.getElementById(mode);
+    if (display_mode == mode) e.style.display = "block";
+    else                      e.style.display = "none";
   }
 }
 
