@@ -24,3 +24,6 @@ th.leaders  { text-align: left; }
 th.tod      { text-align: right; }
 span#error  { color: #ff0000; }
 span#heartbeat { visibility: hidden; }
+
+table#bigtod td { font-size: 240pt; font-weight: bold; text-align: center; }
+table#bigtod th { font-size:  60pt; font-weight: bold; text-align: center; }

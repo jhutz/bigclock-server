@@ -1,5 +1,7 @@
 var f_run      = document.getElementById("run");
 var f_tod      = document.getElementById("tod");
+var f_tod2     = document.getElementById("tod2");
+var f_date     = document.getElementById("date");
 var f_flag     = document.getElementById("flag");
 var f_laps     = document.getElementById("laps");
 var f_laps2go  = document.getElementById("laps2go");
@@ -25,6 +27,22 @@ function process_opts() {
     }
   });
   options = opts;
+
+  if (options.get("mode") == "tod") {
+    document.getElementById("raceinfo").style.display = "none";
+  } else {
+    document.getElementById("bigtod").style.display = "none";
+  }
+}
+
+function show_local_time () {
+  var now = new Date();
+  f_tod2.textContent  = now.toLocaleTimeString(undefined, {
+    hour12: false, hour: '2-digit', minute: '2-digit'
+  });
+  f_date.textContent = now.toLocaleDateString(undefined, {
+    weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
+  });
 }
 
 function reconnect(s) {
@@ -86,6 +104,7 @@ function doconnect() {
               else                   f_laps2go.textContent = fields[1];
               f_timeleft .textContent = fields[2];
               f_tod      .textContent = fields[3];
+              f_tod2     .textContent = fields[3];
               f_elapsed  .textContent = fields[4];
               //f_flag     .textContent = fields[5];
             } else if (fields[0] == '$G') {
@@ -103,6 +122,11 @@ function doconnect() {
               }
             } else if (fields[0] == '$I') {
               f_tod.textContent = fields[1];
+              f_tod2.textContent = fields[1];
+              var date = new Date(fields[2]);
+              f_date.textContent = date.toLocaleDateString(undefined, {
+                weekday: 'long', year: 'numeric',
+                month: 'long', day: 'numeric' });
               f_run      .textContent = '';
               //f_flag     .textContent = '';
               f_laps     .textContent = '';
@@ -125,5 +149,6 @@ function doconnect() {
 
 function onLoad() {
   process_opts();
+  show_local_time();
   doconnect();
 }

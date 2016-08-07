@@ -10,7 +10,7 @@
 <meta http-equiv="Content-Script-Type" content="text/javascript">
 </head>
 <body onload="onLoad()" onhashchange="process_opts()">
-<table class="top">
+<table class="top" id="raceinfo">
   <tr class="header">
     <th id="run" colspan=2>The Run Name Goes Here</th>
   </tr>
@@ -32,5 +32,9 @@
           </th>
         </tr>
   </table></td></tr>
+</table>
+<table class="top" id="bigtod">
+  <tr><td><span id="tod2">00:00:00</span></td></tr>
+  <tr><th><span id="date">Today</span></th></tr>
 </table>
 </body></html>
