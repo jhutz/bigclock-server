@@ -51,7 +51,7 @@ function reconnect(s) {
 }
 
 function heartbeat(e,s) {
-  f_error.textContent = "";
+  f_error.style.visibility = "hidden";
   if (hb_timeout !== undefined) {
     window.clearTimeout(hb_timeout);
   }
@@ -69,7 +69,8 @@ function doconnect() {
         };
         s.onclose = function (e) {
             console.log("Socket closed.");
-            f_error.textContent = "Connection lost";
+            f_error.style.visibility = "visible";
+            show_local_time();
             window.setTimeout(doconnect, 3000);
         };
         s.onmessage = function (e) {
