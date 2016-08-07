@@ -322,5 +322,8 @@ if __name__ == '__main__':
     httpd_thr.daemon = True
     httpd_thr.start()
     while 1:
+        try:
             relay(ws, server, port)
-            sleep(5)
+        except socket.error as e:
+            print(e)
+        time.sleep(5)
