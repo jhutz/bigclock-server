@@ -1,13 +1,19 @@
 body   { background: #ffffff; }
 table { width: 100%; }
 
-/* For chromecast on a 4:3 screen */
-table.top {
+div.top {
+  margin-left: auto;
+  margin-right: auto;
+}
+div.chromeHD { /* For chromecast on a 16:9 screen */
+  width: 95%;
+  height: 480px;
+  margin-top: 50px;
+}
+div.chrome43 { /* For chromecast on a 4:3 screen */
   width: 85%;
   height: 480px;
   margin-top: 50px;
-  margin-left: auto;
-  margin-right: auto;
 }
 
 th#run    { font-size: 48pt; font-weight: bold; }

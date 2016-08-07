@@ -1,3 +1,4 @@
+var f_topdiv   = document.getElementById("topdiv");
 var f_run      = document.getElementById("run");
 var f_tod      = document.getElementById("tod");
 var f_tod2     = document.getElementById("tod2");
@@ -36,6 +37,11 @@ function process_opts() {
     var e = document.getElementById(mode);
     if (display_mode == mode) e.style.display = "block";
     else                      e.style.display = "none";
+  }
+
+  f_topdiv.className = "top";
+  if (options.has("display")) {
+    f_topdiv.classList.add(options.get("display"));
   }
 }
 
