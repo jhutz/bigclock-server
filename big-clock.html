@@ -1,0 +1,36 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN"
+  "http://www.w3.org/TR/html4/loose.dtd">
+<html><head>
+<title>Big Race Clock</title>
+<link rel="stylesheet" href="big-clock.css" type="text/css" />
+<!--
+<link rel="shortcut.icon" href="big-clock.ico" />
+-->
+<script src="big-clock.js" type="text/javascript" defer="1"></script>
+<meta http-equiv="Content-Script-Type" content="text/javascript">
+</head>
+<body>
+<table class="top">
+  <tr class="header">
+    <th id="run" colspan=2>The Run Name Goes Here</th>
+  </tr>
+  <tr class="bigclock"><td><table class="bigclock">
+        <col class="laps"><col class="time">
+        <tr><td id="laps">--</td><td id="elapsed">--:--:--</td></tr>
+        <tr><th>Laps</th><th>Time Elapsed</th></tr>
+        <tr><td id="laps2go">----</td><td id="timeleft">--:--:--</td></tr>
+        <tr><th>Laps to Go</th><th>Time Remaining</th></tr>
+  </table></td></tr>
+  <tr class="footer"><td><table class="footer">
+        <col class="leaders"><col class="tod">
+        <tr>
+          <th class="leaders">Leaders: <span id="leaders"></span></th>
+          <th class="tod">
+            <span id="error"></span>
+            &nbsp;
+            <span id="tod">TTT</span>
+          </th>
+        </tr>
+  </table></td></tr>
+</table>
+</body></html>

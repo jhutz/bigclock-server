@@ -1,0 +1,29 @@
+body   { background: #ffffff; }
+table { width: 100%; }
+
+/* For chromecast on a 4:3 screen */
+table.top {
+  width: 85%;
+  height: 480px;
+  margin-top: 50px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+tr.header   { height: 20%; }
+th#run    { font-size: 48pt; font-weight: bold; }
+
+tr.bigclock { height: 70%; }
+col.laps { width: 45%; }
+col.time { width: 55%; }
+table.bigclock td { font-size: 120pt; font-weight: bold; text-align: center; }
+table.bigclock th { font-size: 30pt;  font-weight: normal; text-align: center; }
+
+tr.footer   { height: 10%; }
+col.leaders { width: 80%; }
+col.tod     { width: 20%; }
+table.footer th { font-size: 30pt;  font-weight: normal; }
+th.leaders  { text-align: left; }
+th.tod      { text-align: right; }
+span#error  { color: #ff0000; }
+span#heartbeat { visibility: hidden; }
