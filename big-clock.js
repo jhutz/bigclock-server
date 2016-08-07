@@ -8,10 +8,24 @@ var f_timeleft = document.getElementById("timeleft");
 var f_leaders  = document.getElementById("leaders");
 var f_error    = document.getElementById("error");
 
+var options = new Map();
 var maxLeaders = 3;
 var cars = new Object;
 var leaders = [];
 var hb_timeout;
+
+function process_opts() {
+  var opts = new Map();
+  var optlist = window.location.hash.replace(/^#/, '').split(';');
+  optlist.forEach(function(val,index,a) {
+    if (val != "") {
+      var kv = val.split('=', 2);
+      if (kv.length < 2) { kv[1] = 1 }
+      opts.set(kv[0], kv[1]);
+    }
+  });
+  options = opts;
+}
 
 function reconnect(s) {
   console.log("Server heartbeat timeout");
@@ -109,4 +123,7 @@ function doconnect() {
     }
 }
 
-doconnect();
+function onLoad() {
+  process_opts();
+  doconnect();
+}

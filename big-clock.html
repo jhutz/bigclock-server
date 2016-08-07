@@ -9,7 +9,7 @@
 <script src="big-clock.js" type="text/javascript" defer="1"></script>
 <meta http-equiv="Content-Script-Type" content="text/javascript">
 </head>
-<body>
+<body onload="onLoad()" onhashchange="process_opts()">
 <table class="top">
   <tr class="header">
     <th id="run" colspan=2>The Run Name Goes Here</th>
