@@ -8,12 +8,12 @@ div.top {
 div.chromeHD { /* For chromecast on a 16:9 screen */
   width: 95%;
   height: 480px;
-  margin-top: 50px;
+  margin-top: 25px;
 }
 div.chrome43 { /* For chromecast on a 4:3 screen */
   width: 85%;
-  height: 480px;
-  margin-top: 50px;
+  height: 600px;
+  margin-top: 25px;
 }
 
 th#run    { font-size: 48pt; font-weight: bold; }
@@ -31,4 +31,5 @@ th.tod      { text-align: right; }
 span#error  { color: #ff0000; visibility: hidden; }
 
 table.bigtod td { font-size: 240pt; font-weight: bold; text-align: center; }
+div.chrome43 table.bigtod td { font-size: 200pt; }
 table.bigtod th { font-size:  60pt; font-weight: bold; text-align: center; }
