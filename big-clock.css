@@ -23,9 +23,9 @@ col.time { width: 55%; }
 table.bigclock td { font-size: 120pt; font-weight: bold; text-align: center; }
 table.bigclock th { font-size: 30pt;  font-weight: normal; text-align: center; }
 
-col.leaders { width: 80%; }
-col.tod     { width: 20%; }
-table.footer th { font-size: 30pt;  font-weight: normal; }
+col.leaders { width: 50%; }
+col.tod     { width: 50%; }
+table.footer th { font-size: 24pt;  font-weight: normal; }
 th.leaders  { text-align: left; }
 th.tod      { text-align: right; }
 span#error  { color: #ff0000; visibility: hidden; }
