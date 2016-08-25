@@ -129,8 +129,14 @@ class WebSocketServer(object):
                 handshake(conn)
                 print('Client connected')
                 with self.lock:
-                    client = {'client': conn, 'failCount': 0, 'alive': True }
-                    self.clients[conn.__hash__()] = client
+                    clientCode = conn.__hash__()
+                    client = {
+                            'id': clientCode,
+                            'client': conn,
+                            'failCount': 0,
+                            'alive': True
+                            }
+                    self.clients[clientCode] = client
                     if not self.POLLER_ACTIVE:
                         self.POLLER_ACTIVE = True
                         poller_thr = threading.Thread(target=self._poll)
@@ -155,30 +161,29 @@ class WebSocketServer(object):
             while self.SERVER_ACTIVE:
                 print('Pinging...')
                 self.sendData('ping')
-                for clientCode in self.clients.keys():
-                    client = self.clients[clientCode]['client']
+                for client in self.clients.values():
                     client.settimeout(5)
                     try:
-                        if self.clients[clientCode]['alive']:
+                        if client['alive']:
                             reply = readData(client)
                             if reply is None:
                                 print('no reply')
-                                self.clients[clientCode]['failCount'] += 1
-                                if self.clients[clientCode]['failCount'] > 2:
-                                    self.clients[clientCode]['alive'] = False
-                                    toRemove.append(clientCode)
+                                client['failCount'] += 1
+                                if client['failCount'] > 2:
+                                    client['alive'] = False
+                                    toRemove.append(client)
                             elif reply == 'pong':
-                                self.clients[clientCode]['alive'] = True
+                                client['alive'] = True
                         else:
-                            print('%s Client lost' % clientCode)
-                            toRemove.append(clientCode)
+                            print('%s Client lost' % client['id'])
+                            toRemove.append(client)
                     except Exception, e:
                         print('Thread for _poll crashed')
-                        self.clients[clientCode]['alive'] = False
-                        toRemove.append(clientCode)
+                        client['alive'] = False
+                        toRemove.append(client)
                         print(e)
-                for clientCode in toRemove:
-                    self._remove(clientCode)
+                for client in toRemove:
+                    self._remove(client)
                 toRemove = []
                 with self.lock:
                     if len(self.clients) == 0:
@@ -198,7 +203,7 @@ class WebSocketServer(object):
 
     def readData(self):
         reply = []
-        for client in self.clients:
+        for client in self.clients.values():
             reply.append(readData(client))
 
     def sendData(self, data, fin=True, opcode=1, masking_key=False):
@@ -245,21 +250,20 @@ class WebSocketServer(object):
                 header += struct.pack('!B', (mask_bit | 127)) + struct.pack('!Q', length)
 
             body = data
-            for clientCode in self.clients.keys():
-                client = self.clients[clientCode]['client']
+            for client in self.clients.values():
                 try:
                     client.send(bytes(header + body))
                 except IOError, e:
                     print('error writing - %s' % data)
-                    self._remove(clientCode)
+                    self._remove(client)
         except Exception, e:
             print(format())
             print(e)
 
-    def _remove(self, clientCode):
+    def _remove(self, client):
         try:
             with self.lock:
-                client = self.clients.pop(clientCode)
+                self.clients.pop(client['id'])
                 client['client'].close()
         except Exception, e:
             print(e)
@@ -267,7 +271,7 @@ class WebSocketServer(object):
 
     def close(self):
         self.SERVER_ACTIVE = False
-        for clientCode in self.clients.keys():
+        for client in self.clients.values():
             with self.lock:
                 client = self.clients.pop(clientCode)
                 client['client'].close()
