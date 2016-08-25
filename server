@@ -258,9 +258,8 @@ class WebSocketServer(object):
 
     def _remove(self, client):
         try:
-            with self.lock:
-                self.clients.pop(client['id'])
-                client['client'].close()
+            self.clients.pop(client['id'])
+            client['client'].close()
         except Exception, e:
             print(e)
             print(format())
@@ -268,9 +267,7 @@ class WebSocketServer(object):
     def close(self):
         self.SERVER_ACTIVE = False
         for client in self.clients.values():
-            with self.lock:
-                client = self.clients.pop(clientCode)
-                client['client'].close()
+            self._remove(client)
 
 
 def relay (ws,server,port):
