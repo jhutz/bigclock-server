@@ -276,7 +276,10 @@ def relay (ws,server,port):
     s.close()
     rmoncsv = csv.reader(rmon)
     while 1:
-        fields = rmoncsv.next()
+        try:
+            fields = rmoncsv.next()
+        except StopIteration:
+            break
         if not fields: break
         #data = rmon.readline()
         #if not data: break
