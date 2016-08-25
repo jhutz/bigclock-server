@@ -110,11 +110,8 @@ def handshake(client):
 
 class WebSocketServer(object):
     def __init__(self, port):
-        self.SERVER_END = False
         self.clients = {}
         self.port = port
-        self._clientAvailable = threading.Lock()
-        self._clientAvailable.acquire()
         self.SERVER_ACTIVE = True
         self.POLLER_ACTIVE = False
         self.lock = threading.Lock()
@@ -131,7 +128,7 @@ class WebSocketServer(object):
                 conn, addr = s.accept()
                 print('Client connected')
                 self.lock.acquire()
-                client = {'client': conn, 'failCount': 0, 'alive': True, 'messageQ': []}
+                client = {'client': conn, 'failCount': 0, 'alive': True }
                 self.clients[conn.__hash__()] = client
                 handshake(conn)
                 if not self.POLLER_ACTIVE:
