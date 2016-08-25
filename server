@@ -126,11 +126,11 @@ class WebSocketServer(object):
         while self.SERVER_ACTIVE:
             try:
                 conn, addr = s.accept()
+                handshake(conn)
                 print('Client connected')
                 with self.lock:
                     client = {'client': conn, 'failCount': 0, 'alive': True }
                     self.clients[conn.__hash__()] = client
-                    handshake(conn)
                     if not self.POLLER_ACTIVE:
                         self.POLLER_ACTIVE = True
                         poller_thr = threading.Thread(target=self._poll)
