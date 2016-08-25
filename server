@@ -156,7 +156,6 @@ class WebSocketServer(object):
         return
 
     def _poll(self):
-        toRemove = []
         try:
             while self.SERVER_ACTIVE:
                 print('Pinging...')
@@ -171,20 +170,17 @@ class WebSocketServer(object):
                                 client['failCount'] += 1
                                 if client['failCount'] > 2:
                                     client['alive'] = False
-                                    toRemove.append(client)
+                                    self._remove(client)
                             elif reply == 'pong':
                                 client['alive'] = True
                         else:
                             print('%s Client lost' % client['id'])
-                            toRemove.append(client)
+                            self._remove(client)
                     except Exception, e:
                         print('Thread for _poll crashed')
                         client['alive'] = False
-                        toRemove.append(client)
+                        self._remove(client)
                         print(e)
-                for client in toRemove:
-                    self._remove(client)
-                toRemove = []
                 with self.lock:
                     if len(self.clients) == 0:
                         print('No Clients, shutting down poller')
