@@ -161,10 +161,10 @@ class WebSocketServer(object):
                 print('Pinging...')
                 self.sendData('ping')
                 for client in self.clients.values():
-                    client.settimeout(5)
+                    client['client'].settimeout(5)
                     try:
                         if client['alive']:
-                            reply = readData(client)
+                            reply = readData(client['client'])
                             if reply is None:
                                 print('no reply')
                                 client['failCount'] += 1
@@ -200,7 +200,7 @@ class WebSocketServer(object):
     def readData(self):
         reply = []
         for client in self.clients.values():
-            reply.append(readData(client))
+            reply.append(readData(client['client']))
 
     def sendData(self, data, fin=True, opcode=1, masking_key=False):
         if fin > 0x1:
@@ -248,7 +248,7 @@ class WebSocketServer(object):
             body = data
             for client in self.clients.values():
                 try:
-                    client.send(bytes(header + body))
+                    client['client'].send(bytes(header + body))
                 except IOError, e:
                     print('error writing - %s' % data)
                     self._remove(client)
