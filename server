@@ -127,16 +127,15 @@ class WebSocketServer(object):
             try:
                 conn, addr = s.accept()
                 print('Client connected')
-                self.lock.acquire()
-                client = {'client': conn, 'failCount': 0, 'alive': True }
-                self.clients[conn.__hash__()] = client
-                handshake(conn)
-                if not self.POLLER_ACTIVE:
-                    self.POLLER_ACTIVE = True
-                    poller_thr = threading.Thread(target=self._poll)
-                    poller_thr.daemon = True
-                    poller_thr.start()
-                self.lock.release()
+                with self.lock:
+                    client = {'client': conn, 'failCount': 0, 'alive': True }
+                    self.clients[conn.__hash__()] = client
+                    handshake(conn)
+                    if not self.POLLER_ACTIVE:
+                        self.POLLER_ACTIVE = True
+                        poller_thr = threading.Thread(target=self._poll)
+                        poller_thr.daemon = True
+                        poller_thr.start()
             except Exception, e:
                 err = e.args[0]
                 # this next if/else is a bit redundant, but illustrates how the
@@ -181,13 +180,11 @@ class WebSocketServer(object):
                 for clientCode in toRemove:
                     self._remove(clientCode)
                 toRemove = []
-                self.lock.acquire()
-                if len(self.clients) == 0:
-                    print('No Clients, shutting down poller')
-                    self.POLLER_ACTIVE = False
-                    self.lock.release()
-                    return
-                self.lock.release()
+                with self.lock:
+                    if len(self.clients) == 0:
+                        print('No Clients, shutting down poller')
+                        self.POLLER_ACTIVE = False
+                        return
                 time.sleep(15)
         except Exception, e:
             self.POLLER_ACTIVE = False
@@ -260,26 +257,20 @@ class WebSocketServer(object):
             print(e)
 
     def _remove(self, clientCode):
-        acquire = False
         try:
-            self.lock.acquire()
-            acquire = True
-            client = self.clients.pop(clientCode)
-            client['client'].close()
-            self.lock.release()
+            with self.lock:
+                client = self.clients.pop(clientCode)
+                client['client'].close()
         except Exception, e:
-            if acquire:
-                self.lock.release()
             print(e)
             print(format())
 
     def close(self):
         self.SERVER_ACTIVE = False
         for clientCode in self.clients.keys():
-            self.lock.acquire()
-            client = self.clients.pop(clientCode)
-            client['client'].close()
-            self.lock.release()
+            with self.lock:
+                client = self.clients.pop(clientCode)
+                client['client'].close()
 
 
 def relay (ws,server,port):
