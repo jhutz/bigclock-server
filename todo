@@ -1,0 +1,12 @@
+- move error to its own line
+- separate reader thread per client, with last-pong time
+- ability to send errors from server to client (e.g. lost rmonitor feed)
+- update local-time on client when not connected to server
+- ability to show schedule data on bigtod
+- ability to send messages from server to client
+- timed race last-lap prediction
+- configuration gui
+- persistent configuration (registry or dotfile)
+- windows packaging
+- cache data in server for auto-refresh to new clients
+
