@@ -11,7 +11,6 @@ var f_timeleft = document.getElementById("timeleft");
 var f_leaders  = document.getElementById("leaders");
 var f_error    = document.getElementById("error");
 
-var options = new Map();
 var display_mode;
 var display_modes = [ "raceinfo", "bigtod" ]
 var maxLeaders = 3;
@@ -29,9 +28,8 @@ function process_opts() {
       opts.set(kv[0], kv[1]);
     }
   });
-  options = opts;
 
-  if (options.has("mode")) display_mode = options.get("mode");
+  if (opts.has("mode")) display_mode = opts.get("mode");
   else display_mode = "raceinfo";
   for (var mode of display_modes) {
     var e = document.getElementById(mode);
@@ -40,8 +38,8 @@ function process_opts() {
   }
 
   f_topdiv.className = "top";
-  if (options.has("display")) {
-    f_topdiv.classList.add(options.get("display"));
+  if (opts.has("display")) {
+    f_topdiv.classList.add(opts.get("display"));
   }
 }
 
