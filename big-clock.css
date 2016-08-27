@@ -16,20 +16,22 @@ div.chrome43 { /* For chromecast on a 4:3 screen */
   margin-top: 25px;
 }
 
-th#run    { font-size: 48pt; font-weight: bold; }
 
-col.laps { width: 45%; }
-col.time { width: 55%; }
-table.bigclock td { font-size: 120pt; font-weight: bold; text-align: center; }
+/* raceinfo aka big-race-clock */
+tr.header      th { font-size: 48pt; font-weight: bold; }
 table.bigclock th { font-size: 30pt;  font-weight: normal; text-align: center; }
+table.bigclock td { font-size: 120pt; font-weight: bold; text-align: center; }
+table.footer   th { font-size: 24pt;  font-weight: normal; }
 
+col.laps    { width: 45%; }
+col.time    { width: 55%; }
 col.leaders { width: 50%; }
 col.tod     { width: 50%; }
-table.footer th { font-size: 24pt;  font-weight: normal; }
 th.leaders  { text-align: left; }
 th.tod      { text-align: right; }
 span#error  { color: #ff0000; visibility: hidden; }
 
+/* bigtod time-of-day clock */
+table.bigtod th { font-size:  60pt; font-weight: bold; text-align: center; }
 table.bigtod td { font-size: 240pt; font-weight: bold; text-align: center; }
 div.chrome43 table.bigtod td { font-size: 200pt; }
-table.bigtod th { font-size:  60pt; font-weight: bold; text-align: center; }
