@@ -241,11 +241,6 @@ class WebSocketServer(object):
         ws_server_thr.daemon = True
         ws_server_thr.start()
 
-    def readData(self):
-        reply = []
-        for client in self.clients.values():
-            reply.append(readData(client['conn']))
-
     def sendData(self, data, fin=True, opcode=1, masking_key=False, clients=None):
         if fin > 0x1:
             raise ValueError('FIN bit parameter must be 0 or 1')
