@@ -141,6 +141,12 @@ class WebSocketServer(object):
         self.SERVER_ACTIVE = True
         self.POLLER_ACTIVE = False
         self.lock = threading.Lock()
+        self.new_client_data = {}
+
+    def initClient(self,client):
+        self.sendJSON([':V', server_version], clients=[client])
+        for item in sorted(self.new_client_data.items()):
+            self.sendJSON(item[1], clients=[client])
 
     def _bindClient(self):
         log(None, 'waiting connection')
@@ -178,6 +184,7 @@ class WebSocketServer(object):
                         'alive': True
                         }
                 with self.lock:
+                    self.initClient(client)
                     self.clients[clientCode] = client
                     conn = None
                     if not self.POLLER_ACTIVE:
@@ -185,7 +192,6 @@ class WebSocketServer(object):
                         poller_thr = threading.Thread(target=self._poll)
                         poller_thr.daemon = True
                         poller_thr.start()
-                self.sendJSON([':V', server_version], clients=[client])
             except Exception, e:
                 if conn: conn.close()
                 log(peer, str(type(e)))
@@ -287,7 +293,7 @@ class WebSocketServer(object):
 
             body = data
             if clients == None:
-                clients = self.clients.values()
+                with self.lock: clients = self.clients.values()
             for client in clients:
                 try:
                     if client['type'] == 'WS':
@@ -333,6 +339,17 @@ def relay (ws,server,port):
             break
         if not fields: break
         print(json.dumps(fields))
+        # Update the cache before sending the data.  This insures that
+        # any new client will see this data, because new clients are
+        # sent the entire cache before being added to the send list,
+        # and locking prevents any all-clients sends in between.
+        if   fields[0] == '$I':
+            ws.new_client_data.clear()
+            ws.new_client_data[''] = fields
+        elif fields[0] in {'$A', '$G'}:
+            ws.new_client_data[ '%s%3d' % (fields[0], fields[1]) ] = fields
+        elif fields[0] in {'$B'}:
+            ws.new_client_data[fields[0]] = fields
         ws.sendJSON(fields)
     log(None, 'Lost connection to rmonitor feed')
     rmon.close()

@@ -5,7 +5,6 @@
 - time offset compensation on client
 - configuration gui
 - persistent configuration (registry or dotfile)
-- cache data in server for auto-refresh to new clients
 - windows packaging
 - ability to show schedule data on bigtod
 - timed race last-lap prediction
