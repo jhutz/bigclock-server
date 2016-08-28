@@ -138,15 +138,15 @@ class WebSocketServer(object):
                 peer = '%s:%d' % addr
                 log(peer, 'Client connected')
                 handshake(conn, peer)
+                clientCode = conn.__hash__()
+                client = {
+                        'id': clientCode,
+                        'peer': peer,
+                        'conn': conn,
+                        'failCount': 0,
+                        'alive': True
+                        }
                 with self.lock:
-                    clientCode = conn.__hash__()
-                    client = {
-                            'id': clientCode,
-                            'peer': peer,
-                            'conn': conn,
-                            'failCount': 0,
-                            'alive': True
-                            }
                     self.clients[clientCode] = client
                     if not self.POLLER_ACTIVE:
                         self.POLLER_ACTIVE = True
