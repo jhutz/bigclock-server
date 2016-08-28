@@ -180,8 +180,8 @@ function doconnect() {
               //f_flag     .textContent = '';
               f_laps     .textContent = '';
               f_laps2go  .textContent = '';
-              f_elapsed  .textContent = '';
-              f_timeleft .textContent = '';
+              f_elapsed  .textContent = '--:--:--';
+              f_timeleft .textContent = '--:--:--';
               f_leaders  .textContent = '';
               cars = new Object;
               leaders = [];
