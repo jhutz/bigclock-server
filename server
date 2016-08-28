@@ -114,10 +114,9 @@ def handshake(conn, peer):
         data = conn.recv(1024)
         if not data: raise EOFError
         parse_headers(data, headers)
-
-    if headers[''][0] == 'DEBUG':
-        log(peer, 'debugging client')
-        return 'DEBUG'
+        if headers[''][0].upper() == 'DEBUG':
+            log(peer, 'debugging client')
+            return 'DEBUG'
 
     if 'Sec-WebSocket-Key' not in headers:
         raise(WSHandshakeError('missing Sec-WebSocket-Key'))
