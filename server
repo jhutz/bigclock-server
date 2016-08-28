@@ -281,6 +281,7 @@ class WebSocketServer(object):
 
 
 def relay (ws,server,port):
+    log(None, "connecting to rmonitor on %s:%d" % (server, port))
     s = socket.create_connection((server, port))
     log(None, 'Connected to rmonitor feed')
     rmon = s.makefile("rb")
@@ -308,18 +309,21 @@ def relay (ws,server,port):
     rmon.close()
 
 if __name__ == '__main__':
+    # Handle command-line arguments
     server = '10.42.0.100'
     port   = 50000
-    print(json.dumps(sys.argv))
     if len(sys.argv) > 1: server = sys.argv[1];
     if len(sys.argv) > 2: port   = sys.argv[2];
-    print("[%s] [%s]\n" % (server, port))
+
+    # Start WebSocket and HTTP servers
     ws = WebSocketServer(9876)
     ws.startServer()
     httpd = BaseHTTPServer.HTTPServer(('', 8000), MyHTTPRequestHandler)
     httpd_thr = threading.Thread(target=httpd.serve_forever)
     httpd_thr.daemon = True
     httpd_thr.start()
+
+    # Run the relay
     while 1:
         try:
             relay(ws, server, port)
