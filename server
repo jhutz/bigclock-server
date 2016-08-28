@@ -186,6 +186,7 @@ class WebSocketServer(object):
                     if not self.POLLER_ACTIVE:
                         self.POLLER_ACTIVE = True
                         poller_thr = threading.Thread(target=self._poll)
+                        poller_thr.name = 'poller'
                         poller_thr.daemon = True
                         poller_thr.start()
             except Exception, e:
@@ -236,6 +237,7 @@ class WebSocketServer(object):
 
     def startServer(self):
         ws_server_thr = threading.Thread(target=self._bindClient)
+        ws_server_thr.name = 'WS Listener'
         ws_server_thr.daemon = True
         ws_server_thr.start()
 
@@ -371,6 +373,7 @@ if __name__ == '__main__':
     ws.startServer()
     httpd = BaseHTTPServer.HTTPServer(('', 8000), MyHTTPRequestHandler)
     httpd_thr = threading.Thread(target=httpd.serve_forever)
+    httpd_thr.name = 'HTTP Listener'
     httpd_thr.daemon = True
     httpd_thr.start()
 
