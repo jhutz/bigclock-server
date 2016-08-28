@@ -211,7 +211,7 @@ class WebSocketServer(object):
         for client in self.clients.values():
             reply.append(readData(client['conn']))
 
-    def sendData(self, data, fin=True, opcode=1, masking_key=False):
+    def sendData(self, data, fin=True, opcode=1, masking_key=False, clients=None):
         if fin > 0x1:
             raise ValueError('FIN bit parameter must be 0 or 1')
         if 0x3 <= opcode <= 0x7 or 0xB <= opcode:
@@ -255,7 +255,9 @@ class WebSocketServer(object):
                 header += struct.pack('!B', (mask_bit | 127)) + struct.pack('!Q', length)
 
             body = data
-            for client in self.clients.values():
+            if clients == None:
+                clients = self.clients.values()
+            for client in clients:
                 try:
                     client['conn'].send(bytes(header + body))
                 except IOError, e:
