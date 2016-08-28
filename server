@@ -267,6 +267,9 @@ class WebSocketServer(object):
             print(format())
             print(e)
 
+    def sendJSON(self, fields, clients=None):
+        self.sendData(json.dumps(fields), clients=clients)
+
     def _remove(self, client):
         try:
             self.clients.pop(client['id'])
@@ -306,7 +309,7 @@ def relay (ws,server,port):
         #    else:
         #        fields.append(f)
         print(json.dumps(fields))
-        ws.sendData(json.dumps(fields))
+        ws.sendJSON(fields)
     log(None, 'Lost connection to rmonitor feed')
     rmon.close()
 
