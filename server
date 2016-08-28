@@ -144,8 +144,17 @@ class WebSocketServer(object):
         while self.SERVER_ACTIVE:
             try:
                 conn, addr = s.accept()
-                peer = '%s:%d' % addr
-                log(peer, 'Client connected')
+            except Exception, e:
+                err = e.args[0]
+                if err == 'timed out':
+                    continue
+                print(format())
+                print(e)
+                self.SERVER_ACTIVE = False
+                return
+            peer = '%s:%d' % addr
+            log(peer, 'Client connected')
+            try:
                 conn.settimeout(5)
                 if not handshake(conn, peer):
                     conn.close()
@@ -160,6 +169,7 @@ class WebSocketServer(object):
                         }
                 with self.lock:
                     self.clients[clientCode] = client
+                    conn = None
                     if not self.POLLER_ACTIVE:
                         self.POLLER_ACTIVE = True
                         poller_thr = threading.Thread(target=self._poll)
@@ -167,15 +177,10 @@ class WebSocketServer(object):
                         poller_thr.start()
                 self.sendJSON([':V', server_version], clients=[client])
             except Exception, e:
-                err = e.args[0]
-                # this next if/else is a bit redundant, but illustrates how the
-                # timeout exception is setup
-                if err == 'timed out':
-                    continue
-                else:
-                    print(format())
-                    self.SERVER_ACTIVE = False
-                    return
+                if conn: conn.close()
+                log(peer, str(type(e)))
+                print(format())
+                print(e)
         log(None, 'Shutting down WS server port: %s' % self.port)
         return
 
@@ -200,9 +205,10 @@ class WebSocketServer(object):
                             log(client['peer'], 'Client timed out')
                             self._remove(client)
                     except Exception, e:
-                        log(client['peer'], type(e))
+                        log(client['peer'], str(type(e)))
                         client['alive'] = False
                         self._remove(client)
+                        print(format())
                         print(e)
                 with self.lock:
                     if len(self.clients) == 0:
