@@ -11,6 +11,14 @@ var f_timeleft = document.getElementById("timeleft");
 var f_leaders  = document.getElementById("leaders");
 var f_error    = document.getElementById("error");
 
+var f_version  = document.getElementById("version");
+var f_v_html   = document.getElementById("version_html");
+var f_v_css    = document.getElementById("version_css");
+var f_v_js     = document.getElementById("version_js");
+var f_v_srv    = document.getElementById("version_srv");
+
+var js_version = "0.9";
+
 var display_mode;
 var display_modes = [ "raceinfo", "bigtod" ]
 var maxLeaders = 3;
@@ -40,6 +48,12 @@ function process_opts() {
   f_topdiv.className = "top";
   if (opts.has("display")) {
     f_topdiv.classList.add(opts.get("display"));
+  }
+
+  if (opts.has("version")) {
+    f_version.style.display = "block";
+  } else {
+    f_version.style.display = "none";
   }
 }
 
@@ -101,6 +115,8 @@ function doconnect() {
              *   $H,pos,regno,bestlap,besttime
              *   $I,tod,date (init/reset)
              *   $J,regno,laptime,time
+             *
+             *   :V,server-version
              */
             if (fields[0] == '$A') {
               cars[fields[1]] = fields[2];
@@ -145,6 +161,8 @@ function doconnect() {
               f_leaders  .textContent = '';
               cars = new Object;
               leaders = [];
+            } else if (fields[0] == ':V') {
+              f_v_srv.textContent = fields[1];
             }
         };
         s.onerror = function (e) {
@@ -157,6 +175,29 @@ function doconnect() {
 }
 
 function onLoad() {
+  /* Extract the version string components.
+   * The HTML document's last-modified timestamp must be fetch early, before
+   * we make any document changes, or we'll get a bogus time.  The actual
+   * document version is embedded in the document and need not be updated.
+   *
+   * The CSS document's version is embedded in a style on the topdiv, and
+   * our (JS) version is embedded in a variable declaration above.  We cannot
+   * obtain last-modified timestamps for these documents, but the server may
+   * embed them in the reported documents at some point in the future.
+   *
+   * The server version is not updated here; instead, it is set when the
+   * server sends it to us.
+   */
+  var html_mod = new Date(document.lastModified);
+  var html_version = html_mod.toLocaleString(undefined, {
+    year: 'numeric', month: 'numeric', day: 'numeric',
+    hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  var topstyle = window.getComputedStyle(f_topdiv);
+  var css_version = topstyle.getPropertyValue('--bigclock-version')
+  f_v_html.textContent = html_version;
+  f_v_css.textContent  = css_version;
+  f_v_js.textContent   = js_version;
+
   process_opts();
   show_local_time();
   doconnect();

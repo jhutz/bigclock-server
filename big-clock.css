@@ -4,6 +4,7 @@ table { width: 100%; }
 div.top {
   margin-left: auto;
   margin-right: auto;
+  --bigclock-version: 0.9
 }
 div.chromeHD { /* For chromecast on a 16:9 screen */
   width: 95%;
@@ -16,6 +17,13 @@ div.chrome43 { /* For chromecast on a 4:3 screen */
   margin-top: 25px;
 }
 
+div#version {
+  /*visibility: hidden;*/
+  position: absolute; top: 0; left: 0;
+  font-size: 12pt; font-weight: normal;
+  color: #ff00ff;
+}
+div.chrome43 div#version { top: 15px; left: 80px; }
 
 /* raceinfo aka big-race-clock */
 tr.header      th { font-size: 48pt; font-weight: bold; }

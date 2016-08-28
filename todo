@@ -1,4 +1,3 @@
-- version display
 - client reload message
 - move error to its own line
 - separate reader thread per client, with last-pong time
