@@ -17,13 +17,16 @@ div.chrome43 { /* For chromecast on a 4:3 screen */
   margin-top: 25px;
 }
 
-div#version {
-  /*visibility: hidden;*/
-  position: absolute; top: 0; left: 0;
+div.version {
+  visibility: hidden;
+  position: absolute;
   font-size: 12pt; font-weight: normal;
   color: #ff00ff;
 }
-div.chrome43 div#version { top: 15px; left: 80px; }
+div#version { top: 0; left:  0; }
+div#options { top: 0; right: 0; }
+div.chrome43 div#version { top: 15px; left:  85px; }
+div.chrome43 div#options { top: 15px; right: 85px; }
 
 /* raceinfo aka big-race-clock */
 tr.header      th { font-size: 48pt; font-weight: bold; }

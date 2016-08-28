@@ -12,10 +12,12 @@ var f_leaders  = document.getElementById("leaders");
 var f_error    = document.getElementById("error");
 
 var f_version  = document.getElementById("version");
+var f_options  = document.getElementById("options");
 var f_v_html   = document.getElementById("version_html");
 var f_v_css    = document.getElementById("version_css");
 var f_v_js     = document.getElementById("version_js");
 var f_v_srv    = document.getElementById("version_srv");
+var f_v_opts   = document.getElementById("version_opts");
 
 var js_version = "0.9";
 
@@ -28,7 +30,10 @@ var hb_timeout;
 
 function process_opts() {
   var opts = new Map();
-  var optlist = window.location.hash.replace(/^#/, '').split(';');
+  var optstr = window.location.hash.replace(/^#/, '');
+  f_v_opts.textContent = optstr;
+
+  var optlist = optstr.split(';');
   optlist.forEach(function(val,index,a) {
     if (val != "") {
       var kv = val.split('=', 2);
@@ -51,9 +56,11 @@ function process_opts() {
   }
 
   if (opts.has("version")) {
-    f_version.style.display = "block";
+    f_version.style.visibility = "visible";
+    f_options.style.visibility = "visible";
   } else {
-    f_version.style.display = "none";
+    f_version.style.visibility = "hidden";
+    f_options.style.visibility = "hidden";
   }
 }
 
