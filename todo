@@ -1,8 +1,6 @@
 - client reload message
-- move error to its own line
 - separate reader thread per client, with last-pong time
-- ability to send errors from server to client (e.g. lost rmonitor feed)
-- ability to send messages from server to client
+- report lost rmonitor feed to clients
 - update local-time on client when not connected to server
 - time offset compensation on client
 - configuration gui

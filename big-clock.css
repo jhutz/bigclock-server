@@ -34,15 +34,19 @@ table.bigclock th { font-size: 30pt;  font-weight: normal; text-align: center; }
 table.bigclock td { font-size: 120pt; font-weight: bold; text-align: center; }
 table.footer   th { font-size: 24pt;  font-weight: normal; }
 
-col.laps    { width: 40%; }
-col.time    { width: 60%; }
-col.leaders { width: 50%; }
-col.tod     { width: 50%; }
-th.leaders  { text-align: left; }
-th.tod      { text-align: right; }
-span#error  { color: #ff0000; visibility: hidden; }
+col.laps     { width: 40%; }
+col.time     { width: 60%; }
+col.leaders  { width: 50%; }
+col.tod      { width: 50%; }
+th.leaders   { text-align: left; }
+th.tod       { text-align: right; }
 
 /* bigtod time-of-day clock */
 table.bigtod th { font-size:  60pt; font-weight: bold; text-align: center; }
 table.bigtod td { font-size: 220pt; font-weight: bold; text-align: center; }
 div.chrome43 table.bigtod td { font-size: 200pt; }
+
+/* global status display */
+div.status   { font-size: 24pt; font-weight: normal; text-align: center; }
+span#message { color: #0000ff; display: none; }
+span#error   { color: #ff0000; }

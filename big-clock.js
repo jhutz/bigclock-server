@@ -9,6 +9,7 @@ var f_laps2go  = document.getElementById("laps2go");
 var f_elapsed  = document.getElementById("elapsed");
 var f_timeleft = document.getElementById("timeleft");
 var f_leaders  = document.getElementById("leaders");
+var f_message  = document.getElementById("message");
 var f_error    = document.getElementById("error");
 
 var f_version  = document.getElementById("version");
@@ -27,6 +28,7 @@ var maxLeaders = 3;
 var cars = new Object;
 var leaders = [];
 var hb_timeout;
+var server_error = "";
 
 function process_opts() {
   var opts = new Map();
@@ -74,13 +76,28 @@ function show_local_time () {
   });
 }
 
+function showMessage(msg) {
+  f_message.textContent = msg
+}
+
+function showError(msg) {
+  if (msg == '') {
+    f_error.style.display = "none";
+    f_message.style.display = "inline";
+  } else {
+    f_error.textContent = msg;
+    f_message.style.display = "none";
+    f_error.style.display = "inline";
+  }
+}
+
 function reconnect(s) {
   console.log("Server heartbeat timeout");
   s.close(4000, "Server heartbeat timeout");
 }
 
 function heartbeat(e,s) {
-  f_error.style.visibility = "hidden";
+  showError(server_error);
   if (hb_timeout !== undefined) {
     window.clearTimeout(hb_timeout);
   }
@@ -98,7 +115,7 @@ function doconnect() {
         };
         s.onclose = function (e) {
             console.log("Socket closed.");
-            f_error.style.visibility = "visible";
+            showError("Server connection lost");
             show_local_time();
             window.setTimeout(doconnect, 3000);
         };
@@ -168,6 +185,11 @@ function doconnect() {
               f_leaders  .textContent = '';
               cars = new Object;
               leaders = [];
+            } else if (fields[0] == ':E') {
+              server_error = fields[1];
+              showError(server_error);
+            } else if (fields[0] == ':M') {
+              showMessage(fields[1]);
             } else if (fields[0] == ':V') {
               f_v_srv.textContent = fields[1];
             }
