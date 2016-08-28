@@ -301,16 +301,6 @@ def relay (ws,server,port):
         except StopIteration:
             break
         if not fields: break
-        #data = rmon.readline()
-        #if not data: break
-        #fields = []
-        #for f in data.rstrip('\r\n').split(','):
-        #    if f == '""':
-        #        fields.append('')
-        #    elif len(f) > 2 and f[0] == '"' and f[-1] == '"':
-        #        fields.append(f[1:-1])
-        #    else:
-        #        fields.append(f)
         print(json.dumps(fields))
         ws.sendJSON(fields)
     log(None, 'Lost connection to rmonitor feed')
