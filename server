@@ -160,61 +160,61 @@ class WebSocketServer(object):
         return
 
     def _readData(self, client):
-        conn = client['conn']
-        try:
-            # receive header
-            data = conn.recv(2)
-            if not data: raise EOFError
-            head1, head2 = struct.unpack('!BB', data)
-            fin = bool(head1 & 0b10000000)
-            opcode = head1 & 0b00001111
-            length = head2 & 0b01111111
-            if length == 126:
+            conn = client['conn']
+            try:
+                # receive header
                 data = conn.recv(2)
                 if not data: raise EOFError
-                length, = struct.unpack('!H', data)
-            elif length == 127:
-                data = conn.recv(8)
+                head1, head2 = struct.unpack('!BB', data)
+                fin = bool(head1 & 0b10000000)
+                opcode = head1 & 0b00001111
+                length = head2 & 0b01111111
+                if length == 126:
+                    data = conn.recv(2)
+                    if not data: raise EOFError
+                    length, = struct.unpack('!H', data)
+                elif length == 127:
+                    data = conn.recv(8)
+                    if not data: raise EOFError
+                    length, = struct.unpack('!Q', data)
+                mask_bits = conn.recv(4)
+                if not mask_bits: raise EOFError
+                mask_bits = bytearray(mask_bits)
+
+                # validation
+                if opcode != 1:
+                    raise WSProtocolError('unsupported opcode %d' % opcode)
+                if not fin:
+                    raise WSProtocolError('fragmented packet unsupported')
+                if not head2 & 0b10000000:
+                    raise WSProtocolError('client data not masked')
+                if length > maxMessageLen:
+                    raise WSProtocolError('packet too long (%d > %d)'
+                            % (length, maxMessageLen))
+
+                # receive and decode data
+                data = conn.recv(length)
                 if not data: raise EOFError
-                length, = struct.unpack('!Q', data)
-            mask_bits = conn.recv(4)
-            if not mask_bits: raise EOFError
-            mask_bits = bytearray(mask_bits)
+                data = bytearray(data)
+                DECODED = []
+                for i in range(0, len(data)):
+                    DECODED.append(data[i] ^ mask_bits[i % 4])
+                DECODED = array.array('B', DECODED).tostring()
+                return DECODED
 
-            # validation
-            if opcode != 1:
-                raise WSProtocolError('unsupported opcode %d' % opcode)
-            if not fin:
-                raise WSProtocolError('fragmented packet unsupported')
-            if not head2 & 0b10000000:
-                raise WSProtocolError('client data not masked')
-            if length > maxMessageLen:
-                raise WSProtocolError('packet too long (%d > %d)'
-                        % (length, maxMessageLen))
-
-            # receive and decode data
-            data = conn.recv(length)
-            if not data: raise EOFError
-            data = bytearray(data)
-            DECODED = []
-            for i in range(0, len(data)):
-                DECODED.append(data[i] ^ mask_bits[i % 4])
-            DECODED = array.array('B', DECODED).tostring()
-            return DECODED
-
-        except socket.timeout:
-            pass
-        except EOFError:
-            log(client['peer'], 'disconnected')
-            return None
-        except IOError, e:
-            log(client['peer'], 'recv: %s' % e.args[0])
-            return None
-        except Exception, e:
-            log(client['peer'], '%s: %s' % (str(type(e)), e.args[0]))
-            print(format())
-            print(e)
-            return None
+            except socket.timeout:
+                pass
+            except EOFError:
+                log(client['peer'], 'disconnected')
+                return None
+            except IOError, e:
+                log(client['peer'], 'recv: %s' % e.args[0])
+                return None
+            except Exception, e:
+                log(client['peer'], '%s: %s' % (str(type(e)), e.args[0]))
+                print(format())
+                print(e)
+                return None
 
     def _poll(self):
         try:
