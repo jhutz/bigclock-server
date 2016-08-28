@@ -142,7 +142,7 @@ class WebSocketServer(object):
         self.lock = threading.Lock()
         self.new_client_data = {}
 
-    def initClient(self,client):
+    def _initClient(self,client):
         self.sendJSON([':V', server_version], clients=[client])
         for item in sorted(self.new_client_data.items()):
             self.sendJSON(item[1], clients=[client])
@@ -180,7 +180,7 @@ class WebSocketServer(object):
                         'alive': True
                         }
                 with self.lock:
-                    self.initClient(client)
+                    self._initClient(client)
                     self.clients[clientCode] = client
                     conn = None
                     if not self.POLLER_ACTIVE:
