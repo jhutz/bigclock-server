@@ -1,5 +1,15 @@
 - client reload message
-- separate reader thread per client, with last-pong time
+- console connection support
+- console command: client reload
+- console command: set rmonitor host/port
+- console command: restart relay
+- console command: reexec server
+- console command: shutdown
+- console command: cache refresh
+- console command: show clients
+- console command: show threads
+- console command: help
+- console command: enable/disable monitor
 - report lost rmonitor feed to clients
 - update local-time on client when not connected to server
 - time offset compensation on client

@@ -169,6 +169,8 @@ class WebSocketServer(object):
 
     def _readClient(self, client):
         conn = client['conn']
+        payload = array.array('B')
+        datatype = 0
         while client['alive']:
             try:
                 # receive header
@@ -176,6 +178,7 @@ class WebSocketServer(object):
                 if not data: raise EOFError
                 head1, head2 = struct.unpack('!BB', data)
                 fin = bool(head1 & 0b10000000)
+                isctrl = head1 & 0b00001000
                 opcode = head1 & 0b00001111
                 length = head2 & 0b01111111
                 if length == 126:
@@ -191,13 +194,23 @@ class WebSocketServer(object):
                 mask_bits = bytearray(mask_bits)
 
                 # validation
-                if not fin:
-                    raise WSProtocolError('fragmented packet unsupported')
+                if not payload and not opcode:
+                    raise WSProtocolError('no opcode in initial packet')
+                if payload and opcode and not isctrl:
+                    raise WSProtocolError('opcode in non-initial packet')
+                if isctrl and not fin:
+                    raise WSProtocolError('fragmented control packet')
                 if not head2 & 0b10000000:
                     raise WSProtocolError('client data not masked')
+                if isctrl and length > 125:
+                    raise WSProtocolError('control message too long (%d > 125)'
+                            % (length))
                 if length > maxMessageLen:
                     raise WSProtocolError('packet too long (%d > %d)'
                             % (length, maxMessageLen))
+                if length > maxMessageLen - len(payload):
+                    raise WSProtocolError('message too long (%d + %d > %d)'
+                            % (len(payload), length, maxMessageLen))
 
                 # receive and decode data
                 data = conn.recv(length)
@@ -206,9 +219,6 @@ class WebSocketServer(object):
                 DECODED = []
                 for i in range(0, len(data)):
                     DECODED.append(data[i] ^ mask_bits[i % 4])
-                DECODED = array.array('B', DECODED).tostring()
-                if opcode == 1 and DECODED == "pong": # pong
-                    client['last_pong'] = time.time()
 
             except socket.timeout:
                 continue
@@ -226,6 +236,27 @@ class WebSocketServer(object):
                 print(e)
                 self._remove(client)
                 break
+
+            if isctrl:
+                data = array.array('B', DECODED).tostring()
+            else:
+                payload.extend(DECODED)
+                if opcode: datatype = opcode
+                if not fin: continue
+                data = payload.tostring()
+                del payload[:]
+
+            # handle complete messages
+            if opcode == 0x8: # close
+                log(client['peer'], 'disconnected')
+                self._remove(client)
+            elif opcode == 0x9: # ping
+                self.sendData(data, opcode=0xa, clients=[client])
+            elif opcode == 0xa or (not isctrl and data == "pong"): # pong
+                client['last_pong'] = time.time()
+                log(client['peer'], 'pong')
+            elif isctrl:
+                log(client['peer'], 'unknown control message %x' % opcode)
 
     def _poll(self):
         pingTimeout = wsPingPeriod * wsMaxPings + 3
