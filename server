@@ -68,9 +68,9 @@ def parse_headers(data, headers):
             headers[parts[0]] = parts[1]
 
 # Conduct handshake.  Possible return values:
-#   - 'WS'     WebSocket client
-#   - 'DEBUG'  debugging client
-#   None       handshake failed
+#   - 'WS'       WebSocket client
+#   - 'CONSOLE'  console client (accepts console commands)
+#   - 'MONITOR'  monitor client (read-only)
 def handshake(conn, peer):
     log(peer, 'Starting handshake')
     headers = {}
@@ -78,9 +78,12 @@ def handshake(conn, peer):
         data = conn.recv(1024)
         if not data: raise EOFError
         parse_headers(data, headers)
-        if headers[''][0].upper() == 'DEBUG':
-            log(peer, 'debugging client')
-            return 'DEBUG'
+        if headers[''][0].upper() == 'CONSOLE':
+            log(peer, 'console client')
+            return 'CONSOLE'
+        if headers[''][0].upper() == 'MONITOR':
+            log(peer, 'monitor client')
+            return 'MONITOR'
 
     if 'Sec-WebSocket-Key' not in headers:
         raise(WSHandshakeError('missing Sec-WebSocket-Key'))
@@ -140,6 +143,7 @@ class WebSocketServer(object):
                         'peer': peer,
                         'conn': conn,
                         'type': clientType,
+                        'squelch': False,
                         'alive': True,
                         'last_pong': time.time()
                         }
@@ -148,7 +152,14 @@ class WebSocketServer(object):
                     self.clients[clientCode] = client
                     conn = None
                     if clientType == 'WS':
-                        client_thr = threading.Thread(target=self._readClient,
+                        client_thr = threading.Thread(target=self._wsClient,
+                                args=(client,))
+                        client_thr.name = 'client ' + peer
+                        client_thr.daemon = True
+                        client_thr.start()
+                    if clientType == 'CONSOLE':
+                        client['squelch'] = True
+                        client_thr = threading.Thread(target=self._consClient,
                                 args=(client,))
                         client_thr.name = 'client ' + peer
                         client_thr.daemon = True
@@ -167,7 +178,7 @@ class WebSocketServer(object):
         log(None, 'Shutting down WS server port: %s' % self.port)
         return
 
-    def _readClient(self, client):
+    def _wsClient(self, client):
         conn = client['conn']
         payload = array.array('B')
         datatype = 0
@@ -257,6 +268,44 @@ class WebSocketServer(object):
                 log(client['peer'], 'pong')
             elif isctrl:
                 log(client['peer'], 'unknown control message %x' % opcode)
+            else:
+                self.handleData(client, datatype, data)
+
+    def _consClient(self, client):
+        conn = client['conn']
+        conn.setblocking(True)
+        f = conn.makefile('rU')
+        while client['alive']:
+            try:
+                data = f.readline().strip()
+                if not data: raise EOFError
+            except socket.timeout:
+                continue
+            except EOFError:
+                log(client['peer'], 'disconnected')
+                self._remove(client)
+                break
+            except IOError, e:
+                log(client['peer'], 'recv: %s' % e.args[0])
+                self._remove(client)
+                break
+            except Exception, e:
+                log(client['peer'], '%s: %s' % (str(type(e)), e.args[0]))
+                print(format())
+                print(e)
+                self._remove(client)
+                break
+
+            if data == "pong":
+                client['last_pong'] = time.time()
+            elif data[0] == ':':
+                self.consoleCommand(client, data[1:].split())
+            elif data[0] == '+':
+                self.sendMessage(data[1:])
+            elif data[0] == '!':
+                self.sendError(data[1:])
+            else:
+                self.handleData(client, 1, data)
 
     def _poll(self):
         pingTimeout = wsPingPeriod * wsMaxPings + 3
@@ -266,7 +315,7 @@ class WebSocketServer(object):
                 self.sendData('ping')
                 now = time.time()
                 for client in self.clients.values():
-                    if client['type'] == 'DEBUG': continue
+                    if client['type'] != 'WS': continue
                     if not client['alive']: continue
                     if now - client['last_pong'] > pingTimeout:
                         log(client['peer'], 'Client timed out')
@@ -288,7 +337,8 @@ class WebSocketServer(object):
         ws_server_thr.daemon = True
         ws_server_thr.start()
 
-    def sendData(self, data, fin=True, opcode=1, masking_key=False, clients=None):
+    def sendData(self, data, fin=True, opcode=1, masking_key=False,
+            clients=None, allClients=False):
         if fin > 0x1:
             raise ValueError('FIN bit parameter must be 0 or 1')
         if 0x3 <= opcode <= 0x7 or 0xB <= opcode:
@@ -334,11 +384,13 @@ class WebSocketServer(object):
             body = data
             if clients == None:
                 with self.lock: clients = self.clients.values()
+                if not allClients:
+                    clients = [c for c in clients if not c['squelch']]
             for client in clients:
                 try:
                     if client['type'] == 'WS':
                         client['conn'].send(bytes(header + body))
-                    elif client['type'] == 'DEBUG':
+                    elif client['type'] in { 'CONSOLE', 'MONITOR'}:
                         client['conn'].send(bytes(body + '\r\n'))
                 except IOError, e:
                     log(client['peer'], 'send: %s' % e.args[0])
@@ -347,8 +399,19 @@ class WebSocketServer(object):
             print(format())
             print(e)
 
-    def sendJSON(self, fields, clients=None):
-        self.sendData(json.dumps(fields), clients=clients)
+    def sendJSON(self, fields, clients=None, allClients=False):
+        self.sendData(json.dumps(fields),
+                clients=clients, allClients=allClients)
+
+    def sendMessage(self, message):
+        fields = [':M', message]
+        self.new_client_data[fields[0]] = fields
+        self.sendJSON(fields, allClients=True)
+
+    def sendError(self, message):
+        fields = [':E', message]
+        self.new_client_data[fields[0]] = fields
+        self.sendJSON(fields, allClients=True)
 
     def _remove(self, client):
         try:
@@ -364,6 +427,14 @@ class WebSocketServer(object):
         self.SERVER_ACTIVE = False
         for client in self.clients.values():
             self._remove(client)
+
+    def handleData(self, client, opcode, data):
+        log(client['peer'], 'message op=%d [%s]' % (opcode, data))
+        pass
+
+    def consoleCommand(self, client, data):
+        log(client['peer'], 'console command %s' % (data))
+        pass
 
 
 def relay (ws,server,port):

@@ -1,5 +1,4 @@
 - client reload message
-- console connection support
 - console command: client reload
 - console command: set rmonitor host/port
 - console command: restart relay
