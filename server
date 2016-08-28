@@ -64,45 +64,6 @@ def parse_headers(data, headers):
         if len(parts) == 2:
             headers[parts[0]] = parts[1]
 
-
-def readData(conn):
-    try:
-        data = conn.recv(2)
-        head1, head2 = struct.unpack('!BB', data)
-        fin = bool(head1 & 0b10000000)
-        opcode = head1 & 0b00001111
-        if opcode == 1:
-            length = head2 & 0b01111111
-            if length == 126:
-                data = conn.recv(2)
-                length, = struct.unpack('!H', data)
-            elif length == 127:
-                data = conn.recv(8)
-                length, = struct.unpack('!Q', data)
-
-            mask_bits = conn.recv(4)
-            mask_bits = bytearray(mask_bits)
-            data = conn.recv(length)
-            data = bytearray(data)
-            DECODED = []
-            for i in range(0, len(data)):
-                DECODED.append(data[i] ^ mask_bits[i % 4])
-            DECODED = array.array('B', DECODED).tostring()
-            if fin:
-                return DECODED
-    except Exception, e:
-        err = e.args[0]
-        # this next if/else is a bit redundant, but illustrates how the
-        # timeout exception is setup
-        if err == 'timed out':
-            pass
-        elif err == 10053:
-            return None
-        else:
-            print(e)
-            return None
-
-
 # Conduct handshake.  Possible return values:
 #   - 'WS'     WebSocket client
 #   - 'DEBUG'  debugging client
@@ -197,6 +158,44 @@ class WebSocketServer(object):
         log(None, 'Shutting down WS server port: %s' % self.port)
         return
 
+    def _readData(self, client):
+        conn = client['conn']
+        try:
+            data = conn.recv(2)
+            head1, head2 = struct.unpack('!BB', data)
+            fin = bool(head1 & 0b10000000)
+            opcode = head1 & 0b00001111
+            if opcode == 1:
+                length = head2 & 0b01111111
+                if length == 126:
+                    data = conn.recv(2)
+                    length, = struct.unpack('!H', data)
+                elif length == 127:
+                    data = conn.recv(8)
+                    length, = struct.unpack('!Q', data)
+    
+                mask_bits = conn.recv(4)
+                mask_bits = bytearray(mask_bits)
+                data = conn.recv(length)
+                data = bytearray(data)
+                DECODED = []
+                for i in range(0, len(data)):
+                    DECODED.append(data[i] ^ mask_bits[i % 4])
+                DECODED = array.array('B', DECODED).tostring()
+                if fin:
+                    return DECODED
+        except Exception, e:
+            err = e.args[0]
+            # this next if/else is a bit redundant, but illustrates how the
+            # timeout exception is setup
+            if err == 'timed out':
+                pass
+            elif err == 10053:
+                return None
+            else:
+                print(e)
+                return None
+
     def _poll(self):
         try:
             while self.SERVER_ACTIVE:
@@ -206,7 +205,7 @@ class WebSocketServer(object):
                     if client['type'] == 'DEBUG': continue
                     try:
                         if client['alive']:
-                            reply = readData(client['conn'])
+                            reply = self._readData(client)
                             if reply is None:
                                 log(client['peer'], 'no reply')
                                 client['failCount'] += 1
