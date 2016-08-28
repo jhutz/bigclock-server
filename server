@@ -31,7 +31,6 @@ class MyHTTPRequestHandler(SimpleHTTPServer.SimpleHTTPRequestHandler):
     protocol_version = "HTTP/1.0"
     def end_headers(self):
         self.send_my_headers()
-
         SimpleHTTPServer.SimpleHTTPRequestHandler.end_headers(self)
 
     def send_my_headers(self):
@@ -40,6 +39,10 @@ class MyHTTPRequestHandler(SimpleHTTPServer.SimpleHTTPRequestHandler):
         self.send_header("Max-Age", "0")
         self.send_header("Cache-Control", "no-cache")
         self.send_header("Cache-Control", "must-revalidate")
+
+    def list_directory(self, path):
+        self.send_error(404, "No permission to list directory")
+        return None
 
 # WebSocket server code adapted from
 # https://gist.github.com/sadatanwar/222d4643c25f72293461
