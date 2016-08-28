@@ -20,7 +20,8 @@ var f_v_js     = document.getElementById("version_js");
 var f_v_srv    = document.getElementById("version_srv");
 var f_v_opts   = document.getElementById("version_opts");
 
-var js_version = "0.9";
+var js_version = "0.9-@@@@@@-@@@@@@";
+var versions = [];
 
 var display_mode;
 var display_modes = [ "raceinfo", "bigtod" ]
@@ -112,6 +113,9 @@ function doconnect() {
         s.onopen = function (e) {
             console.log("Socket opened.");
             heartbeat(e,s);
+            var msg = ['%V'];
+            msg = msg.concat(versions);
+            s.send(JSON.stringify(msg));
         };
         s.onclose = function (e) {
             console.log("Socket closed.");
@@ -205,27 +209,20 @@ function doconnect() {
 
 function onLoad() {
   /* Extract the version string components.
-   * The HTML document's last-modified timestamp must be fetch early, before
-   * we make any document changes, or we'll get a bogus time.  The actual
-   * document version is embedded in the document and need not be updated.
-   *
    * The CSS document's version is embedded in a style on the topdiv, and
-   * our (JS) version is embedded in a variable declaration above.  We cannot
-   * obtain last-modified timestamps for these documents, but the server may
-   * embed them in the reported documents at some point in the future.
-   *
+   * our (JS) version is embedded in a variable declaration above.
    * The server version is not updated here; instead, it is set when the
    * server sends it to us.
    */
-  var html_mod = new Date(document.lastModified);
-  var html_version = html_mod.toLocaleString(undefined, {
-    year: 'numeric', month: 'numeric', day: 'numeric',
-    hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  var html_version = f_v_html.textContent;
   var topstyle = window.getComputedStyle(f_topdiv);
-  var css_version = topstyle.getPropertyValue('--bigclock-version')
-  f_v_html.textContent = html_version;
+  var css_version = topstyle.getPropertyValue('--bigclock-version').trim();
+  if (css_version.startsWith('"') && css_version.endsWith('"')) {
+    css_version = css_version.slice(1, -1);
+  }
   f_v_css.textContent  = css_version;
   f_v_js.textContent   = js_version;
+  versions = [html_version, css_version, js_version];
 
   process_opts();
   show_local_time();

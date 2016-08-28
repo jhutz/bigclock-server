@@ -4,7 +4,7 @@ table { width: 100%; }
 div.top {
   margin-left: auto;
   margin-right: auto;
-  --bigclock-version: 0.9
+  --bigclock-version: "0.9-@@@@@@-@@@@@@"
 }
 div.chromeHD { /* For chromecast on a 16:9 screen */
   width: 95%;

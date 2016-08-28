@@ -44,6 +44,14 @@ class MyHTTPRequestHandler(SimpleHTTPServer.SimpleHTTPRequestHandler):
         self.send_error(404, "No permission to list directory")
         return None
 
+    def copyfile(self, source, outputfile):
+        name = source.name[ source.name.rfind('/')+1 : ]
+        if not name.startswith('big-clock.'):
+            return SimpleHTTPRequestHandler.copyfile(source, outputfile)
+        s = os.fstat(source.fileno())
+        stamp = time.strftime('%y%m%d-%H%M%S', time.localtime(s.st_mtime))
+        outputfile.write(source.read().replace('@@@@@@-@@@@@@',stamp))
+
 # WebSocket server code adapted from
 # https://gist.github.com/sadatanwar/222d4643c25f72293461
 
@@ -478,9 +486,8 @@ if __name__ == '__main__':
 
     # Compute and report server version
     try:
-        server_ts = os.stat(sys.argv[0]).st_mtime
-        server_version += time.strftime(', %m/%d/%Y, %H:%M:%S',
-                time.localtime(server_ts))
+        ts = os.stat(sys.argv[0]).st_mtime
+        server_version += time.strftime('-%y%m%d-%H%M%S', time.localtime(ts))
     except Exception:
         pass
     log(None, "BigClock server v%s" % (server_version))
