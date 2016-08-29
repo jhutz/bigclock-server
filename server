@@ -12,6 +12,7 @@ import time
 import json
 import os
 import sys
+import fcntl
 import csv
 from traceback import format_exc as format
 
@@ -26,6 +27,10 @@ def log(peer, msg):
         preamble += ' ' + peer
     print(preamble + ' ' + msg)
 
+def cloexec(sock):
+    flags = fcntl.fcntl(sock.fileno(), fcntl.F_GETFD)
+    flags |= fcntl.FD_CLOEXEC
+    fcntl.fcntl(sock.fileno(), fcntl.F_SETFD, flags)
 
 class MyHTTPRequestHandler(SimpleHTTPServer.SimpleHTTPRequestHandler):
     protocol_version = "HTTP/1.0"
@@ -51,6 +56,11 @@ class MyHTTPRequestHandler(SimpleHTTPServer.SimpleHTTPRequestHandler):
         s = os.fstat(source.fileno())
         stamp = time.strftime('%y%m%d-%H%M%S', time.localtime(s.st_mtime))
         outputfile.write(source.read().replace('@@@@@@-@@@@@@',stamp))
+
+class MyHTTPServer(BaseHTTPServer.HTTPServer):
+    def __init__(self, *args, **kwargs):
+        BaseHTTPServer.HTTPServer.__init__(self, *args, **kwargs)
+        cloexec(self.socket)
 
 # WebSocket server code adapted from
 # https://gist.github.com/sadatanwar/222d4643c25f72293461
@@ -128,6 +138,7 @@ class WebSocketServer(object):
     def _bindClient(self):
         log(None, 'waiting connection')
         s = socket.socket()
+        cloexec(s)
         s.settimeout(5)
         s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         s.bind(('', self.port))
@@ -146,6 +157,7 @@ class WebSocketServer(object):
             peer = '%s:%d' % addr
             log(peer, 'Client connected')
             try:
+                cloexec(conn)
                 conn.settimeout(5)
                 clientType = handshake(conn, peer)
                 clientCode = conn.__hash__()
@@ -495,7 +507,7 @@ if __name__ == '__main__':
     # Start WebSocket and HTTP servers
     ws = WebSocketServer(9876)
     ws.startServer()
-    httpd = BaseHTTPServer.HTTPServer(('', 8000), MyHTTPRequestHandler)
+    httpd = MyHTTPServer(('', 8000), MyHTTPRequestHandler)
     httpd_thr = threading.Thread(target=httpd.serve_forever)
     httpd_thr.name = 'HTTP Listener'
     httpd_thr.daemon = True
