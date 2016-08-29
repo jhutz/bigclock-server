@@ -22,6 +22,10 @@ server_version = '0.9'
 global rmon_server, rmon_port
 rmon_server = '10.42.0.100'
 rmon_port   = 50000
+
+global timezone
+timezone = 'America/New_York'
+
 maxMessageLen = 1024
 wsPingPeriod = 15
 wsMaxPings = 3
@@ -143,6 +147,7 @@ class WebSocketServer(object):
 
     def _initClient(self,client):
         self.sendJSON([':V', server_version], clients=[client])
+        self.sendJSON([':TZ', timezone], clients=[client])
         for item in sorted(self.new_client_data.items()):
             self.sendJSON(item[1], clients=[client])
 
@@ -503,7 +508,7 @@ class WebSocketServer(object):
 
     def consoleCommand(self, client, fields):
         global RunRelay, Shutdown, ReExec
-        global rmon_server, rmon_port
+        global rmon_server, rmon_port, timezone
         log(client['peer'], 'console command %s' % (fields))
         if   fields[0] == "version":
             self.sendData("BigClock server v%s" % (server_version),
@@ -574,6 +579,12 @@ class WebSocketServer(object):
             else:
                 rmon_server = fields[1]
                 if len(fields) > 2: rmon_port = int(fields[2])
+        elif fields[0] == "timezone":
+            if len(fields) < 2:
+                self.sendData("timezone %s" % timezone, clients=[client])
+                return
+            timezone = fields[1]
+            self.sendJSON([':TZ', timezone])
         elif fields[0] == "help":
             self.sendData("""
 The following commands are available
@@ -585,6 +596,7 @@ The following commands are available
   :threads            list active threads
   :kick ipaddr:port   disconnect a client
   :server host [port] change rmonitor server (:reconnect to apply)
+  :timezone           change timezone reported to clients
   :refresh            resend cached data to all clients
   :reload             tell all clients to reload page
   :reconnect          reconnect to rmonitor feed

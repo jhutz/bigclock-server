@@ -23,11 +23,14 @@ var f_v_opts   = document.getElementById("version_opts");
 var css_version = "";
 var js_version = "0.9-@@@@@@-@@@@@@";
 
+var timezone = "";
+var server_tz = "";
 var display_mode;
 var display_modes = [ "raceinfo", "bigtod" ]
 var maxLeaders = 3;
 var cars = new Object;
 var leaders = [];
+var tod_is_local = false;
 var hb_timeout;
 var server_error = "";
 
@@ -53,6 +56,11 @@ function process_opts() {
     else                      e.style.display = "none";
   }
 
+  if (opts.has("tz")) {
+    timezone = opts.get("tz");
+    if (tod_is_local) show_local_time();
+  }
+
   f_topdiv.className = "top";
   if (opts.has("display")) {
     f_topdiv.classList.add(opts.get("display"));
@@ -68,13 +76,19 @@ function process_opts() {
 }
 
 function show_local_time () {
+  tod_is_local = true;
   var now = new Date();
-  f_tod2.textContent  = now.toLocaleTimeString(undefined, {
-    hour12: false, hour: '2-digit', minute: '2-digit'
-  });
-  f_date.textContent = now.toLocaleDateString(undefined, {
-    weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
-  });
+  var todopts = { hour12:false, hour:'2-digit', minute:'2-digit' };
+  var dayopts = { year:'numeric', month:'long', day:'numeric', weekday:'long' };
+  if (timezone != "") {
+    todopts['timeZone'] = timezone;
+    dayopts['timeZone'] = timezone;
+  } else if (server_tz != "") {
+    todopts['timeZone'] = server_tz;
+    dayopts['timeZone'] = server_tz;
+  }
+  f_tod2.textContent  = now.toLocaleTimeString(undefined, todopts);
+  f_date.textContent = now.toLocaleDateString(undefined, dayopts);
 }
 
 function showMessage(msg) {
@@ -160,6 +174,7 @@ function doconnect() {
               f_tod      .textContent = fields[3];
               f_tod2     .textContent = fields[3];
               f_elapsed  .textContent = fields[4];
+              tod_is_local = false;
               //f_flag     .textContent = fields[5];
             } else if (fields[0] == '$G') {
               /* race info: $G,pos,regcode,laps,time */
@@ -175,6 +190,7 @@ function doconnect() {
                 f_leaders.textContent = leaderstr;
               }
             } else if (fields[0] == '$I') {
+              tod_is_local = false;
               f_tod.textContent = fields[1];
               f_tod2.textContent = fields[1];
               var date = new Date(fields[2]);
@@ -197,6 +213,9 @@ function doconnect() {
               showMessage(fields[1]);
             } else if (fields[0] == ':R') {
               document.location.reload(true)
+            } else if (fields[0] == ':TZ') {
+              server_tz = fields[1];
+              if (tod_is_local) show_local_time();
             } else if (fields[0] == ':V') {
               f_v_srv.textContent = fields[1];
             }
