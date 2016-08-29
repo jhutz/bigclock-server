@@ -4,3 +4,6 @@
 - windows packaging
 - ability to show schedule data on bigtod
 - timed race last-lap prediction
+- allow server to change client options
+- client name lookup in DNS
+- select client for commands using ID, host:port, or name
