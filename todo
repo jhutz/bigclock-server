@@ -1,7 +1,4 @@
 - fix timezone problem on chromecast
-- switch to real ping/pong
-- have server send gratuitous pongs at 1Hz when rmonitor feed is down
-- show client disconnect reason
 - configuration gui
 - persistent configuration (registry or dotfile)
 - windows portability
