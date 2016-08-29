@@ -1,19 +1,9 @@
-- client reload message
-- console command: client reload
 - console command: set rmonitor host/port
-- console command: restart relay
-- console command: reexec server
-- console command: shutdown
-- console command: cache refresh
-- console command: show clients
-- console command: show threads
-- console command: help
-- console command: enable/disable monitor
 - report lost rmonitor feed to clients
-- update local-time on client when not connected to server
-- time offset compensation on client
+- fix timezone problem on chromecast
 - configuration gui
 - persistent configuration (registry or dotfile)
+- windows portability
 - windows packaging
 - ability to show schedule data on bigtod
 - timed race last-lap prediction

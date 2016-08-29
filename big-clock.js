@@ -194,6 +194,8 @@ function doconnect() {
               showError(server_error);
             } else if (fields[0] == ':M') {
               showMessage(fields[1]);
+            } else if (fields[0] == ':R') {
+              document.location.reload(true)
             } else if (fields[0] == ':V') {
               f_v_srv.textContent = fields[1];
             }

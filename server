@@ -12,6 +12,7 @@ import time
 import json
 import os
 import sys
+import signal
 import fcntl
 import csv
 from traceback import format_exc as format
@@ -20,6 +21,11 @@ maxMessageLen = 1024
 wsPingPeriod = 15
 wsMaxPings = 3
 server_version = '0.9'
+global RunRelay, Shutdown, ReExec
+RunRelay = True
+Shutdown = False
+ReExec   = False
+
 
 def log(peer, msg):
     preamble = time.strftime('%b %d %H:%M:%S')
@@ -168,7 +174,11 @@ class WebSocketServer(object):
                         'type': clientType,
                         'squelch': False,
                         'alive': True,
-                        'last_pong': time.time()
+                        'last_pong': time.time(),
+                        'user_agent'   : '???',
+                        'version_html' : '???',
+                        'version_css'  : '???',
+                        'version_js'   : '???',
                         }
                 with self.lock:
                     self._initClient(client)
@@ -452,14 +462,115 @@ class WebSocketServer(object):
             self._remove(client)
 
     def handleData(self, client, opcode, data):
-        log(client['peer'], 'message op=%d [%s]' % (opcode, data))
-        pass
+        if opcode != 1:
+            log(client['peer'], 'unsupported message opcode %d' % opcode)
+            return
+        try:
+            fields = json.loads(data)
+        except Exception, e:
+            log(client['peer'], str(type(e)))
+            return
+        if fields[0] == '%U':
+            client['user_agent'] = fields[1]
+            log(client['peer'], 'User-Agent: %s' % fields[1])
+        elif fields[0] == '%V':
+            client['version_html'] = fields[1]
+            client['version_css' ] = fields[2]
+            client['version_js'  ] = fields[3]
+            log(client['peer'], 'Version: HTML %s / CSS %s / JS %s' % (
+                fields[1], fields[2], fields[3]))
+        else:
+            log(client['peer'], 'unsupported message type %s' % fields[0])
 
-    def consoleCommand(self, client, data):
-        log(client['peer'], 'console command %s' % (data))
-        pass
+    def consoleCommand(self, client, fields):
+        global RunRelay, Shutdown, ReExec
+        log(client['peer'], 'console command %s' % (fields))
+        if   fields[0] == "version":
+            self.sendData("BigClock server v%s" % (server_version),
+                    clients=[client])
+        elif fields[0] == "refresh":
+            self.sendData('Refreshing all clients', clients=[client])
+            self.sendJSON([':V', server_version])
+            for item in sorted(self.new_client_data.items()):
+                self.sendJSON(item[1])
+        elif fields[0] == "reload":
+            self.sendData('Reloading all clients', clients=[client])
+            self.sendJSON([':R'])
+        elif fields[0] == "reconnect":
+            self.sendData('restarting rmonitor relay', clients=[client])
+            RunRelay = False
+            os.kill(os.getpid(), signal.SIGHUP)
+        elif fields[0] == "restart":
+            self.sendData('restarting server', clients=[client])
+            ReExec = True
+            Shutdown = True
+            RunRelay = False
+            os.kill(os.getpid(), signal.SIGHUP)
+        elif fields[0] == "shutdown":
+            self.sendData('shutting down server', clients=[client])
+            Shutdown = True
+            RunRelay = False
+            os.kill(os.getpid(), signal.SIGHUP)
+        elif fields[0] == "clients":
+            msg =  "   Client ID         Type     LastSeen  IP Address : Port\n"
+            msg += "   ================  =======  ========  =====================\n"
+            for c in self.clients.values():
+                fl = '>' if c is client else '-' if not c['alive'] else ' '
+                fl += 'S' if c['squelch'] else ' '
+                ts = time.strftime('%H:%M:%S', time.localtime(c['last_pong']))
+                msg += "%s %16x  %-7s  %-8s  %s\n" % (
+                        fl, c['id'], c['type'], ts, c['peer'])
+                if len(fields) > 1 and fields[1] == '-v' and c['type'] == 'WS':
+                    msg += "   %s\n   HTML %s / CSS %s / JS %s\n" % (
+                            c['user_agent'], c['version_html'],
+                            c['version_css'], c['version_js'])
+            self.sendData(msg, clients=[client])
+        elif fields[0] == "threads":
+            current = threading.current_thread()
+            msg =  "          Thread ID  Description\n"
+            msg += "   ================  ===============\n"
+            for t in threading.enumerate():
+                fl =  '>' if t is current else ' '
+                fl += 'D' if t.daemon else ' '
+                msg += "%s %16x  %s\n" % (fl, t.ident, t.name)
+            self.sendData(msg, clients=[client])
+        elif fields[0] == "kick":
+            if len(fields) < 2:
+                self.sendData("kick requires an address:port", clients=[client])
+                return
+            for c in self.clients.values():
+                if c['peer'] == fields[1]:
+                    self.sendData("kicking %x" % c['id'], clients=[client])
+                    log(c['peer'], "disconnected via console %s" % client['peer'])
+                    self._remove(c)
+        elif fields[0] == "squelch":
+            client['squelch'] = True
+        elif fields[0] == "unsquelch":
+            client['squelch'] = False
+        elif fields[0] == "help":
+            self.sendData("""
+The following commands are available
+  +<msg>              set status message to <msg>
+  !<msg>              set error message to <msg>
+  :refresh            resend cached data to all clients
+  :reload             tell all clients to reload page
+  :reconnect          reconnect to rmonitor feed
+  :restart            restart server
+  :shutdown           shut down server
+  :clients [-v]       list connected clients
+  :threads            list active threads
+  :kick ipaddr:port   disconnect a client
+  :squelch            disable monitor output
+  :unsquelch          enable monitor output
+  :help               show this help message
+  :version            show server version
+""", clients=[client])
+        else:
+            self.sendData('Unrecognized command %s' % fields[0])
 
 
+class StopRelayException(Exception): pass
+def StopRelaySignal(signal, frame): raise StopRelayException
 def relay (ws,server,port):
     log(None, "connecting to rmonitor on %s:%d" % (server, port))
     s = socket.create_connection((server, port))
@@ -467,12 +578,15 @@ def relay (ws,server,port):
     rmon = s.makefile("rb")
     s.close()
     rmoncsv = csv.reader(rmon)
-    while 1:
+    while RunRelay:
         try:
             fields = rmoncsv.next()
         except StopIteration:
+            log(None, 'Lost connection to rmonitor feed')
             break
-        if not fields: break
+        if not fields:
+            log(None, 'Lost connection to rmonitor feed')
+            break
         print(json.dumps(fields))
         # Update the cache before sending the data.  This insures that
         # any new client will see this data, because new clients are
@@ -486,7 +600,7 @@ def relay (ws,server,port):
         elif fields[0] in {'$B'}:
             ws.new_client_data[fields[0]] = fields
         ws.sendJSON(fields)
-    log(None, 'Lost connection to rmonitor feed')
+    log(None, 'relay server exiting')
     rmon.close()
 
 if __name__ == '__main__':
@@ -504,6 +618,7 @@ if __name__ == '__main__':
         pass
     log(None, "BigClock server v%s" % (server_version))
 
+    signal.signal(signal.SIGHUP, StopRelaySignal)
     # Start WebSocket and HTTP servers
     ws = WebSocketServer(9876)
     ws.startServer()
@@ -514,9 +629,20 @@ if __name__ == '__main__':
     httpd_thr.start()
 
     # Run the relay
-    while 1:
+    while not Shutdown:
         try:
-            relay(ws, server, port)
-        except socket.error as e:
-            log(None, str(e))
-        time.sleep(5)
+            try:
+                RunRelay = True
+                relay(ws, server, port)
+            except socket.error as e:
+                log(None, str(e))
+            time.sleep(5)
+        except StopRelayException:
+            log(None, "relay server exited on SIGHUP")
+    httpd.shutdown()
+    ws.close()
+    if ReExec:
+        if sys.argv[0] == '' or sys.argv[0] == '-c':
+            log(None, "Unable to reexec from non-file")
+        else:
+            os.execv(sys.argv[0], sys.argv)
