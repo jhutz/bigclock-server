@@ -20,8 +20,8 @@ var f_v_js     = document.getElementById("version_js");
 var f_v_srv    = document.getElementById("version_srv");
 var f_v_opts   = document.getElementById("version_opts");
 
+var css_version = "";
 var js_version = "0.9-@@@@@@-@@@@@@";
-var versions = [];
 
 var display_mode;
 var display_modes = [ "raceinfo", "bigtod" ]
@@ -113,9 +113,10 @@ function doconnect() {
         s.onopen = function (e) {
             console.log("Socket opened.");
             heartbeat(e,s);
-            var msg = ['%V'];
-            msg = msg.concat(versions);
-            s.send(JSON.stringify(msg));
+            s.send(JSON.stringify(['%U', window.navigator.userAgent]));
+            s.send(JSON.stringify(['%V', f_v_html.textContent,
+                                  css_version, js_version]));
+            s.send(JSON.stringify(['%O', f_v_opts.textContent]));
         };
         s.onclose = function (e) {
             console.log("Socket closed.");
@@ -216,15 +217,13 @@ function onLoad() {
    * The server version is not updated here; instead, it is set when the
    * server sends it to us.
    */
-  var html_version = f_v_html.textContent;
   var topstyle = window.getComputedStyle(f_topdiv);
-  var css_version = topstyle.getPropertyValue('--bigclock-version').trim();
+  css_version = topstyle.getPropertyValue('--bigclock-version').trim();
   if (css_version.startsWith('"') && css_version.endsWith('"')) {
     css_version = css_version.slice(1, -1);
   }
   f_v_css.textContent  = css_version;
   f_v_js.textContent   = js_version;
-  versions = [html_version, css_version, js_version];
 
   process_opts();
   show_local_time();

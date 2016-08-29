@@ -183,6 +183,7 @@ class WebSocketServer(object):
                         'version_html' : '???',
                         'version_css'  : '???',
                         'version_js'   : '???',
+                        'options'      : '-',
                         }
                 with self.lock:
                     self._initClient(client)
@@ -474,7 +475,10 @@ class WebSocketServer(object):
         except Exception, e:
             log(client['peer'], str(type(e)))
             return
-        if fields[0] == '%U':
+        if fields[0] == '%O':
+            client['options'] = fields[1]
+            log(client['peer'], 'Options: %s' % fields[1])
+        elif fields[0] == '%U':
             client['user_agent'] = fields[1]
             log(client['peer'], 'User-Agent: %s' % fields[1])
         elif fields[0] == '%V':
@@ -517,27 +521,27 @@ class WebSocketServer(object):
             RunRelay = False
             os.kill(os.getpid(), signal.SIGHUP)
         elif fields[0] == "clients":
-            msg =  "   Client ID         Type     LastSeen  IP Address : Port\n"
-            msg += "   ================  =======  ========  =====================\n"
+            msg =  "      Client ID  Type     LastSeen  IP Address : Port\n"
+            msg += "   ============  =======  ========  =====================\n"
             for c in self.clients.values():
                 fl = '>' if c is client else '-' if not c['alive'] else ' '
                 fl += 'S' if c['squelch'] else ' '
                 ts = time.strftime('%H:%M:%S', time.localtime(c['last_pong']))
-                msg += "%s %16x  %-7s  %-8s  %s\n" % (
+                msg += "%s %12x  %-7s  %-8s  %s\n" % (
                         fl, c['id'], c['type'], ts, c['peer'])
                 if len(fields) > 1 and fields[1] == '-v' and c['type'] == 'WS':
-                    msg += "   %s\n   HTML %s / CSS %s / JS %s\n" % (
+                    msg += "   %s\n   HTML %s / CSS %s / JS %s\n   %s\n\n" % (
                             c['user_agent'], c['version_html'],
-                            c['version_css'], c['version_js'])
+                            c['version_css'], c['version_js'], c['options'])
             self.sendData(msg, clients=[client])
         elif fields[0] == "threads":
             current = threading.current_thread()
-            msg =  "          Thread ID  Description\n"
-            msg += "   ================  ===============\n"
+            msg =  "      Thread ID  Description\n"
+            msg += "   ============  ===============\n"
             for t in threading.enumerate():
                 fl =  '>' if t is current else ' '
                 fl += 'D' if t.daemon else ' '
-                msg += "%s %16x  %s\n" % (fl, t.ident, t.name)
+                msg += "%s %12x  %s\n" % (fl, t.ident, t.name)
             self.sendData(msg, clients=[client])
         elif fields[0] == "kick":
             if len(fields) < 2:
