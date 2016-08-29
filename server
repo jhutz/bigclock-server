@@ -506,36 +506,92 @@ class WebSocketServer(object):
         else:
             log(client['peer'], 'unsupported message type %s' % fields[0])
 
+    def _findClient(self, spec):
+        for c in self.clients.values():
+            if spec == "%x" % c['id']: return c
+            if spec == c['peer']:      return c
+        return None
+
     def consoleCommand(self, client, fields):
         global RunRelay, Shutdown, ReExec
         global rmon_server, rmon_port, timezone
         log(client['peer'], 'console command %s' % (fields))
-        if   fields[0] == "version":
+        if fields[0] == "version":
             self.sendData("BigClock server v%s" % (server_version),
                     clients=[client])
+
+        elif fields[0] == "server":
+            if len(fields) >= 2:
+                rmon_server = fields[1]
+                if len(fields) > 2: rmon_port = int(fields[2])
+            self.sendData("rmonitor host %s port %d" % (
+                rmon_server, rmon_port), clients=[client])
+            if len(fields) >= 2:
+                self.sendData(":reconnect to apply", clients=[client])
+
+        elif fields[0] == "timezone":
+            if len(fields) >= 2:
+                timezone = fields[1]
+                self.sendJSON([':TZ', timezone])
+            self.sendData("timezone %s" % timezone, clients=[client])
+
+        elif fields[0] == "kick":
+            if len(fields) < 2:
+                self.sendData("kick requires a client", clients=[client])
+                return
+            for spec in fields[1:]:
+                c = self._findClient(spec)
+                if not c: continue
+                self.sendData("kicking %x" % c['id'], clients=[client])
+                log(c['peer'], "disconnected via console %s" % client['peer'])
+                self._remove(c)
+
         elif fields[0] == "refresh":
-            self.sendData('Refreshing all clients', clients=[client])
-            self.sendJSON([':V', server_version])
+            if len(fields) >= 2:
+                cc = filter(None, [ self._findClient(c) for c in fields[1:] ])
+                clist = ','.join(['%x' % c['id'] for c in cc])
+                self.sendData('Refreshing %s' % clist, clients=[client])
+            else:
+                cc = None
+                self.sendData('Refreshing all clients', clients=[client])
+            self.sendJSON([':V', server_version], clients=cc)
             for item in sorted(self.new_client_data.items()):
-                self.sendJSON(item[1])
+                self.sendJSON(item[1], clients=cc)
+
         elif fields[0] == "reload":
-            self.sendData('Reloading all clients', clients=[client])
-            self.sendJSON([':R'])
+            if len(fields) >= 2:
+                cc = filter(None, [ self._findClient(c) for c in fields[1:] ])
+                clist = ','.join(['%x' % c['id'] for c in cc])
+                self.sendData('Reloading %s' % clist, clients=[client])
+            else:
+                cc = None
+                self.sendData('Reloading all clients', clients=[client])
+            self.sendJSON([':R'], clients=cc)
+
         elif fields[0] == "reconnect":
             self.sendData('restarting rmonitor relay', clients=[client])
             RunRelay = False
             os.kill(os.getpid(), signal.SIGHUP)
+
         elif fields[0] == "restart":
             self.sendData('restarting server', clients=[client])
             ReExec = True
             Shutdown = True
             RunRelay = False
             os.kill(os.getpid(), signal.SIGHUP)
+
         elif fields[0] == "shutdown":
             self.sendData('shutting down server', clients=[client])
             Shutdown = True
             RunRelay = False
             os.kill(os.getpid(), signal.SIGHUP)
+
+        elif fields[0] == "squelch":
+            client['squelch'] = True
+
+        elif fields[0] == "unsquelch":
+            client['squelch'] = False
+
         elif fields[0] == "clients":
             msg =  "      Client ID  Type     LastSeen  IP Address : Port\n"
             msg += "   ============  =======  ========  =====================\n"
@@ -550,6 +606,7 @@ class WebSocketServer(object):
                             c['user_agent'], c['version_html'],
                             c['version_css'], c['version_js'], c['options'])
             self.sendData(msg, clients=[client])
+
         elif fields[0] == "threads":
             current = threading.current_thread()
             msg =  "      Thread ID  Description\n"
@@ -559,51 +616,26 @@ class WebSocketServer(object):
                 fl += 'D' if t.daemon else ' '
                 msg += "%s %12x  %s\n" % (fl, t.ident, t.name)
             self.sendData(msg, clients=[client])
-        elif fields[0] == "kick":
-            if len(fields) < 2:
-                self.sendData("kick requires an address:port", clients=[client])
-                return
-            for c in self.clients.values():
-                if c['peer'] == fields[1]:
-                    self.sendData("kicking %x" % c['id'], clients=[client])
-                    log(c['peer'], "disconnected via console %s" % client['peer'])
-                    self._remove(c)
-        elif fields[0] == "squelch":
-            client['squelch'] = True
-        elif fields[0] == "unsquelch":
-            client['squelch'] = False
-        elif fields[0] == "server":
-            if len(fields) < 2:
-                self.sendData("rmonitor host %s port %d" % (
-                    rmon_server, rmon_port), clients=[client])
-            else:
-                rmon_server = fields[1]
-                if len(fields) > 2: rmon_port = int(fields[2])
-        elif fields[0] == "timezone":
-            if len(fields) < 2:
-                self.sendData("timezone %s" % timezone, clients=[client])
-                return
-            timezone = fields[1]
-            self.sendJSON([':TZ', timezone])
+
         elif fields[0] == "help":
             self.sendData("""
 The following commands are available
-  +<msg>              set status message to <msg>
-  !<msg>              set error message to <msg>
-  :squelch            disable monitor output
-  :unsquelch          enable monitor output
-  :clients [-v]       list connected clients
-  :threads            list active threads
-  :kick ipaddr:port   disconnect a client
-  :server host [port] change rmonitor server (:reconnect to apply)
-  :timezone           change timezone reported to clients
-  :refresh            resend cached data to all clients
-  :reload             tell all clients to reload page
-  :reconnect          reconnect to rmonitor feed
-  :restart            restart server
-  :shutdown           shut down server
-  :help               show this help message
-  :version            show server version
+  +<msg>                  set status message to <msg>
+  !<msg>                  set error message to <msg>
+  :server [host [port]]   show or change rmonitor server (:reconnect to apply)
+  :timezone [zone]        show or change timezone reported to clients
+  :kick client...         disconnect a client
+  :refresh [client...]    resend cached data to one or all clients
+  :reload [client...]     tell one or all clients to reload page
+  :reconnect              reconnect to rmonitor feed
+  :restart                restart server
+  :shutdown               shut down server
+  :squelch                disable monitor output
+  :unsquelch              enable monitor output
+  :clients [-v]           list connected clients
+  :threads                list active threads
+  :help                   show this help message
+  :version                show server version
 """, clients=[client])
         else:
             self.sendData('Unrecognized command %s' % fields[0])
