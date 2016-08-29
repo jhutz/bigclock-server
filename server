@@ -535,13 +535,30 @@ class WebSocketServer(object):
                 self.sendJSON([':TZ', timezone])
             self.sendData("timezone %s" % timezone, clients=[client])
 
+        elif fields[0] == "options":
+            if len(fields) < 2:
+                self.sendData("options requires a client", clients=[client])
+                return
+            if len(fields) < 3:
+                self.sendData("options required", clients=[client])
+                return
+            c = self._findClient(fields[1])
+            if not c:
+                self.sendData("unknown client %s" % spec, clients=[client])
+                return
+            self.sendData("changing client %x options" % c['id'],
+                    clients=[client])
+            self.sendJSON([':OPT', fields[2]], clients=[c])
+
         elif fields[0] == "kick":
             if len(fields) < 2:
                 self.sendData("kick requires a client", clients=[client])
                 return
             for spec in fields[1:]:
                 c = self._findClient(spec)
-                if not c: continue
+                if not c:
+                    self.sendData("unknown client %s" % spec, clients=[client])
+                    continue
                 self.sendData("kicking %x" % c['id'], clients=[client])
                 log(c['peer'], "disconnected via console %s" % client['peer'])
                 self._remove(c)
@@ -624,6 +641,7 @@ The following commands are available
   !<msg>                  set error message to <msg>
   :server [host [port]]   show or change rmonitor server (:reconnect to apply)
   :timezone [zone]        show or change timezone reported to clients
+  :options client opts    change client config options
   :kick client...         disconnect a client
   :refresh [client...]    resend cached data to one or all clients
   :reload [client...]     tell one or all clients to reload page

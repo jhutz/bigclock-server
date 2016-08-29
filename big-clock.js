@@ -31,14 +31,18 @@ var maxLeaders = 3;
 var cars = new Object;
 var leaders = [];
 var tod_is_local = false;
+var opts_changed = false;
 var hb_timeout;
 var server_error = "";
 
-function process_opts() {
-  var opts = new Map();
-  var optstr = window.location.hash.replace(/^#/, '');
+function process_opts(optstr) {
+  if (optstr == null) {
+    optstr = window.location.hash.replace(/^#/, '');
+  }
   f_v_opts.textContent = optstr;
+  opts_changed = true;
 
+  var opts = new Map();
   var optlist = optstr.split(';');
   optlist.forEach(function(val,index,a) {
     if (val != "") {
@@ -130,7 +134,6 @@ function doconnect() {
             s.send(JSON.stringify(['%U', window.navigator.userAgent]));
             s.send(JSON.stringify(['%V', f_v_html.textContent,
                                   css_version, js_version]));
-            s.send(JSON.stringify(['%O', f_v_opts.textContent]));
         };
         s.onclose = function (e) {
             console.log("Socket closed.");
@@ -141,6 +144,10 @@ function doconnect() {
         s.onmessage = function (e) {
             heartbeat(e,s);
             console.log("Socket message:", e.data);
+            if (opts_changed) {
+              s.send(JSON.stringify(['%O', f_v_opts.textContent]));
+              opts_changed = false;
+            }
             if (e.data == "ping") {
               s.send("pong");
               return;
@@ -211,6 +218,8 @@ function doconnect() {
               showError(server_error);
             } else if (fields[0] == ':M') {
               showMessage(fields[1]);
+            } else if (fields[0] == ':OPT') {
+              process_opts(fields[1]);
             } else if (fields[0] == ':R') {
               document.location.reload(true)
             } else if (fields[0] == ':TZ') {
