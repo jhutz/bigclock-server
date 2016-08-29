@@ -1,4 +1,3 @@
-- report lost rmonitor feed to clients
 - fix timezone problem on chromecast
 - configuration gui
 - persistent configuration (registry or dotfile)
