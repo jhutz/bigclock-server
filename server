@@ -27,7 +27,7 @@ global timezone
 timezone = 'America/New_York'
 
 maxMessageLen = 1024
-wsPingPeriod = 15
+wsPingPeriod = 5
 wsMaxPings = 3
 global RunRelay, Shutdown, ReExec
 RunRelay = True
