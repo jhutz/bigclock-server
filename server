@@ -690,7 +690,9 @@ def relay (ws,server,port):
         if   fields[0] == '$I':
             ws.new_client_data.clear()
             ws.new_client_data[''] = fields
-        elif fields[0] in {'$A', '$G'}:
+        elif fields[0] in {'$A' }:
+            ws.new_client_data[ '%s%s' % (fields[0], fields[1]) ] = fields
+        elif fields[0] in {'$G'}:
             ws.new_client_data[ '%s%3d' % (fields[0], int(fields[1])) ] = fields
         elif fields[0] in {'$B'}:
             ws.new_client_data[fields[0]] = fields
