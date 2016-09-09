@@ -151,6 +151,52 @@ class WebSocketServer(object):
         for item in sorted(self.new_client_data.items()):
             self.sendJSON(item[1], clients=[client])
 
+    def addClient(self, conn, peer, clientType):
+        try:
+            clientCode = conn.__hash__()
+            client = {
+                    'id': clientCode,
+                    'peer': peer,
+                    'conn': conn,
+                    'type': clientType,
+                    'squelch': False,
+                    'alive': True,
+                    'last_pong': time.time(),
+                    'user_agent'   : '???',
+                    'version_html' : '???',
+                    'version_css'  : '???',
+                    'version_js'   : '???',
+                    'options'      : '-',
+                    }
+            with self.lock:
+                self._initClient(client)
+                self.clients[clientCode] = client
+                conn = None
+                if clientType == 'WS':
+                    client_thr = threading.Thread(target=self._wsClient,
+                            args=(client,))
+                    client_thr.name = 'client ' + peer
+                    client_thr.daemon = True
+                    client_thr.start()
+                if clientType == 'CONSOLE':
+                    client['squelch'] = True
+                    client_thr = threading.Thread(target=self._consClient,
+                            args=(client,))
+                    client_thr.name = 'client ' + peer
+                    client_thr.daemon = True
+                    client_thr.start()
+                if not self.POLLER_ACTIVE:
+                    self.POLLER_ACTIVE = True
+                    poller_thr = threading.Thread(target=self._poll)
+                    poller_thr.name = 'poller'
+                    poller_thr.daemon = True
+                    poller_thr.start()
+        except Exception, e:
+            if conn: conn.close()
+            log(peer, str(type(e)))
+            print(format())
+            print(e)
+
     def _bindClient(self):
         log(None, 'waiting connection')
         s = socket.socket()
@@ -176,49 +222,12 @@ class WebSocketServer(object):
                 cloexec(conn)
                 conn.settimeout(5)
                 clientType = handshake(conn, peer)
-                clientCode = conn.__hash__()
-                client = {
-                        'id': clientCode,
-                        'peer': peer,
-                        'conn': conn,
-                        'type': clientType,
-                        'squelch': False,
-                        'alive': True,
-                        'last_pong': time.time(),
-                        'user_agent'   : '???',
-                        'version_html' : '???',
-                        'version_css'  : '???',
-                        'version_js'   : '???',
-                        'options'      : '-',
-                        }
-                with self.lock:
-                    self._initClient(client)
-                    self.clients[clientCode] = client
-                    conn = None
-                    if clientType == 'WS':
-                        client_thr = threading.Thread(target=self._wsClient,
-                                args=(client,))
-                        client_thr.name = 'client ' + peer
-                        client_thr.daemon = True
-                        client_thr.start()
-                    if clientType == 'CONSOLE':
-                        client['squelch'] = True
-                        client_thr = threading.Thread(target=self._consClient,
-                                args=(client,))
-                        client_thr.name = 'client ' + peer
-                        client_thr.daemon = True
-                        client_thr.start()
-                    if not self.POLLER_ACTIVE:
-                        self.POLLER_ACTIVE = True
-                        poller_thr = threading.Thread(target=self._poll)
-                        poller_thr.name = 'poller'
-                        poller_thr.daemon = True
-                        poller_thr.start()
             except Exception, e:
-                if conn: conn.close()
+                conn.close()
                 log(peer, str(type(e)))
                 print(format())
                 print(e)
+            self.addClient(conn, peer, clientType)
         log(None, 'Shutting down WS server port: %s' % self.port)
         return
 
