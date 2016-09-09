@@ -19,12 +19,13 @@ from traceback import format_exc as format
 
 server_version = '0.9'
 
-global rmon_server, rmon_port
-rmon_server = '10.42.0.100'
-rmon_port   = 50000
+global config
+config = {
+    'rmon_server' : '10.42.0.100',
+    'rmon_port'   : 50000,
+    'timezone'    : 'America/New_York',
+    }
 
-global timezone
-timezone = 'America/New_York'
 
 maxMessageLen = 1024
 wsPingPeriod = 5
@@ -147,7 +148,7 @@ class WebSocketServer(object):
 
     def _initClient(self,client):
         self.sendJSON([':V', server_version], clients=[client])
-        self.sendJSON([':TZ', timezone], clients=[client])
+        self.sendJSON([':TZ', config['timezone']], clients=[client])
         for item in sorted(self.new_client_data.items()):
             self.sendJSON(item[1], clients=[client])
 
@@ -525,7 +526,7 @@ class WebSocketServer(object):
 
     def consoleCommand(self, client, fields):
         global RunRelay, Shutdown, ReExec
-        global rmon_server, rmon_port, timezone
+        global config
         log(client['peer'], 'console command %s' % (fields))
         if fields[0] == "version":
             self.sendData("BigClock server v%s" % (server_version),
@@ -533,18 +534,18 @@ class WebSocketServer(object):
 
         elif fields[0] == "server":
             if len(fields) >= 2:
-                rmon_server = fields[1]
-                if len(fields) > 2: rmon_port = int(fields[2])
+                config['rmon_server'] = fields[1]
+                if len(fields) > 2: config['rmon_port'] = int(fields[2])
             self.sendData("rmonitor host %s port %d" % (
-                rmon_server, rmon_port), clients=[client])
+                config['rmon_server'], config['rmon_port']), clients=[client])
             if len(fields) >= 2:
                 self.sendData(":reconnect to apply", clients=[client])
 
         elif fields[0] == "timezone":
             if len(fields) >= 2:
-                timezone = fields[1]
-                self.sendJSON([':TZ', timezone])
-            self.sendData("timezone %s" % timezone, clients=[client])
+                config['timezone'] = fields[1]
+                self.sendJSON([':TZ', config['timezone']])
+            self.sendData("timezone %s" % config['timezone'], clients=[client])
 
         elif fields[0] == "options":
             if len(fields) < 2:
@@ -717,8 +718,8 @@ def relay (ws,server,port):
 
 if __name__ == '__main__':
     # Handle command-line arguments
-    if len(sys.argv) > 1: rmon_server = sys.argv[1];
-    if len(sys.argv) > 2: rmon_port   = sys.argv[2];
+    if len(sys.argv) > 1: config['rmon_server'] = sys.argv[1];
+    if len(sys.argv) > 2: config['rmon_port']   = sys.argv[2];
 
     # Compute and report server version
     try:
@@ -743,7 +744,7 @@ if __name__ == '__main__':
         try:
             try:
                 RunRelay = True
-                relay(ws, rmon_server, rmon_port)
+                relay(ws, config['rmon_server'], config['rmon_port'])
             except socket.error as e:
                 log(None, str(e))
                 ws.sendError('Lost rmonitor feed')
