@@ -19,12 +19,13 @@ from traceback import format_exc as format
 
 server_version = '0.9'
 
-global config
+global config, config_int
 config = {
     'rmon_server' : '10.42.0.100',
     'rmon_port'   : 50000,
     'timezone'    : 'America/New_York',
     }
+config_int = { 'rmon_port' }
 
 
 maxMessageLen = 1024
@@ -532,20 +533,29 @@ class WebSocketServer(object):
             self.sendData("BigClock server v%s" % (server_version),
                     clients=[client])
 
-        elif fields[0] == "server":
-            if len(fields) >= 2:
-                config['rmon_server'] = fields[1]
-                if len(fields) > 2: config['rmon_port'] = int(fields[2])
-            self.sendData("rmonitor host %s port %d" % (
-                config['rmon_server'], config['rmon_port']), clients=[client])
-            if len(fields) >= 2:
-                self.sendData(":reconnect to apply", clients=[client])
-
-        elif fields[0] == "timezone":
-            if len(fields) >= 2:
-                config['timezone'] = fields[1]
-                self.sendJSON([':TZ', config['timezone']])
-            self.sendData("timezone %s" % config['timezone'], clients=[client])
+        elif fields[0] == "config":
+            if len(fields) == 1:   # print config
+                for opt in sorted(config.keys()):
+                    self.sendData("%-15s %s" % (opt, config[opt]),
+                            clients=[client])
+            elif len(fields) == 2: # print one config item
+                if fields[1] in config:
+                    self.sendData(config[fields[1]], clients=[client])
+                else:
+                    self.sendData("unknown config option %s" % fields[1],
+                            clients=[client])
+            else:
+                if fields[1] in config_int:
+                    try:
+                        config[fields[1]] = int(fields[2])
+                    except ValueError:
+                        self.sendData("invalid value %s" % fields[2],
+                                clients=[client])
+                elif fields[1] in config:
+                    config[fields[1]] = fields[2]
+                else:
+                    self.sendData("unknown config option %s" % fields[1],
+                            clients=[client])
 
         elif fields[0] == "options":
             if len(fields) < 2:
