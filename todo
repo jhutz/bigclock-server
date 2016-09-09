@@ -1,6 +1,4 @@
 - reconnect to rmonitor after too many missed heartbeats
-- blank line shouldn't disconnect console
-- quit command
 - change console port
 - dedicated console and monitor ports
 - configuration gui

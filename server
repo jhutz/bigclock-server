@@ -336,8 +336,10 @@ class WebSocketServer(object):
         f = conn.makefile('rU')
         while client['alive']:
             try:
-                data = f.readline().strip()
-                if not data: raise EOFError
+                line = f.readline()
+                if not line: raise EOFError
+                data = line.strip()
+                if not data: continue
             except socket.timeout:
                 continue
             except EOFError:
@@ -643,6 +645,9 @@ class WebSocketServer(object):
                 msg += "%s %12x  %s\n" % (fl, t.ident, t.name)
             self.sendData(msg, clients=[client])
 
+        elif fields[0] == "quit":
+            self._remove(client)
+
         elif fields[0] == "help":
             self.sendData("""
 The following commands are available
@@ -663,6 +668,7 @@ The following commands are available
   :threads                list active threads
   :help                   show this help message
   :version                show server version
+  :quit                   Disconnect console
 """, clients=[client])
         else:
             self.sendData('Unrecognized command %s' % fields[0])
