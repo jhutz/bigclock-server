@@ -22,6 +22,7 @@ var f_v_opts   = document.getElementById("version_opts");
 
 var css_version = "";
 var js_version = "0.9-@@@@@@-@@@@@@";
+var data_port = "9999";
 
 var timezone = "";
 var server_tz = "";
@@ -34,6 +35,12 @@ var tod_is_local = false;
 var opts_changed = false;
 var hb_timeout;
 var server_error = "";
+
+function getCookie(name) {
+    function escape(s) { return s.replace(/([.*+?\^${}()|\[\]\/\\])/g, '\\$1'); };
+    var match = document.cookie.match(RegExp('(?:^|;\\s*)' + escape(name) + '=([^;]*)'));
+    return match ? match[1] : null;
+}
 
 function process_opts(optstr) {
   if (optstr == null) {
@@ -125,7 +132,7 @@ function heartbeat(e,s) {
 
 function doconnect() {
     try {
-        var host = "ws://" + window.location.hostname + ":9876/stuff";
+        var host = "ws://" + window.location.hostname + ":" + data_port + "/";
         console.log("Host:", host);
         var s = new WebSocket(host);
         s.onopen = function (e) {
@@ -252,6 +259,9 @@ function onLoad() {
   }
   f_v_css.textContent  = css_version;
   f_v_js.textContent   = js_version;
+
+  var port = getCookie('bigclock_port');
+  if (port != null) data_port = port;
 
   process_opts();
   show_local_time();
