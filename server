@@ -141,9 +141,8 @@ def handshake(conn, peer):
 
 
 class WebSocketServer(object):
-    def __init__(self, port):
+    def __init__(self):
         self.clients = {}
-        self.port = port
         self.SERVER_ACTIVE = True
         self.POLLER_ACTIVE = False
         self.SEND_HEARTBEAT = False
@@ -202,15 +201,33 @@ class WebSocketServer(object):
             print(format())
             print(e)
 
-    def _bindClient(self):
-        log(None, 'waiting connection')
+    def _setupSocket(self, port):
         s = socket.socket()
         cloexec(s)
         s.settimeout(5)
         s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        s.bind(('', self.port))
+        s.bind(('', port))
         s.listen(10)
+        return s
+
+    def _bindClient(self):
+        port = config['data_port']
+        s = self._setupSocket(port)
+        log(None, 'Data feed listening on port %d' % port)
         while self.SERVER_ACTIVE:
+            if port != config['data_port']:
+                newport = config['data_port']
+                try:
+                    newsock = self._setupSocket(newport)
+                    try: s.close()
+                    except: pass
+                    s = newsock
+                    port = newport
+                    log(None, 'Data feed listening on port %d' % port)
+                    log(None, 'Reloading all clients due to feed port change')
+                    self.sendJSON([':R'])
+                except IOError, e:
+                    log(None, '_setupSocket: %s' % e.args[0])
             try:
                 conn, addr = s.accept()
             except Exception, e:
@@ -233,7 +250,7 @@ class WebSocketServer(object):
                 print(format())
                 print(e)
             self.addClient(conn, peer, clientType)
-        log(None, 'Shutting down WS server port: %s' % self.port)
+        log(None, 'Shutting down WS server port: %s' % port)
         return
 
     def _wsClient(self, client):
@@ -744,7 +761,7 @@ if __name__ == '__main__':
 
     signal.signal(signal.SIGHUP, StopRelaySignal)
     # Start WebSocket and HTTP servers
-    ws = WebSocketServer(config['data_port'])
+    ws = WebSocketServer()
     ws.startServer()
     httpd = MyHTTPServer(('', 8000), MyHTTPRequestHandler)
     httpd_thr = threading.Thread(target=httpd.serve_forever)
