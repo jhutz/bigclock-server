@@ -1,6 +1,4 @@
 - reconnect to rmonitor after too many missed heartbeats
-- change console port
-- dedicated console and monitor ports
 - configuration gui
 - persistent configuration (registry or dotfile)
 - windows portability

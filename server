@@ -21,12 +21,14 @@ server_version = '0.9'
 
 global config, config_int
 config = {
+        'console_port'    : 9977,
         'data_port'       : 9999,
+        'monitor_port'    : 9988,
         'rmon_port'       : 50000,
         'rmon_server'     : '10.42.0.100',
         'timezone'        : 'America/New_York',
     }
-config_int = { 'data_port', 'rmon_port' }
+config_int = { 'console_port', 'data_port', 'monitor_port', 'rmon_port' }
 
 
 maxMessageLen = 1024
@@ -81,6 +83,73 @@ class MyHTTPServer(BaseHTTPServer.HTTPServer):
         BaseHTTPServer.HTTPServer.__init__(self, *args, **kwargs)
         cloexec(self.socket)
 
+
+class TCPAcceptServer(object):
+    def __init__(self, cfg_key, ws, clientType):
+        self.cfg_key = cfg_key
+        self.ws = ws
+        self.ctype = clientType
+        self.SERVER_ACTIVE = True
+
+    def _setupSocket(self, port):
+        s = socket.socket()
+        cloexec(s)
+        s.settimeout(5)
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        s.bind(('', port))
+        s.listen(10)
+        return s
+
+    def _bindClient(self):
+        port = config[self.cfg_key]
+        s = self._setupSocket(port)
+        log(None, '%s listening on port %d' % (self.ctype, port))
+        while self.SERVER_ACTIVE:
+            if port != config[self.cfg_key]:
+                newport = config[self.cfg_key]
+                try:
+                    newsock = self._setupSocket(newport)
+                    try: s.close()
+                    except: pass
+                    s = newsock
+                    port = newport
+                    log(None, '%s listening on port %d' % (self.ctype, port))
+                except IOError, e:
+                    log(None, '%s _setupSocket: %s' % (self.ctype, e.args[0]))
+            try:
+                conn, addr = s.accept()
+            except Exception, e:
+                err = e.args[0]
+                if err == 'timed out':
+                    continue
+                print(format())
+                print(e)
+                self.SERVER_ACTIVE = False
+                return
+            peer = '%s:%d' % addr
+            log(peer, '%s client connected' % self.ctype)
+            try:
+                cloexec(conn)
+                conn.settimeout(5)
+            except Exception, e:
+                conn.close()
+                log(peer, str(type(e)))
+                print(format())
+                print(e)
+            self.ws.addClient(conn, peer, self.ctype)
+        log(None, 'Shutting down %s server port: %s' % (self.ctype, port))
+        return
+
+    def startServer(self):
+        server_thr = threading.Thread(target=self._bindClient)
+        server_thr.name = '%s Listener' % self.ctype
+        server_thr.daemon = True
+        server_thr.start()
+
+    def close(self):
+        self.SERVER_ACTIVE = False
+
+
 # WebSocket server code adapted from
 # https://gist.github.com/sadatanwar/222d4643c25f72293461
 
@@ -118,12 +187,6 @@ def handshake(conn, peer):
         data = conn.recv(1024)
         if not data: raise EOFError
         parse_headers(data, headers)
-        if headers[''][0].upper() == 'CONSOLE':
-            log(peer, 'console client')
-            return 'CONSOLE'
-        if headers[''][0].upper() == 'MONITOR':
-            log(peer, 'monitor client')
-            return 'MONITOR'
 
     if 'Sec-WebSocket-Key' not in headers:
         raise(WSHandshakeError('missing Sec-WebSocket-Key'))
@@ -763,6 +826,10 @@ if __name__ == '__main__':
     # Start WebSocket and HTTP servers
     ws = WebSocketServer()
     ws.startServer()
+    console_acceptor = TCPAcceptServer('console_port', ws, 'CONSOLE')
+    console_acceptor.startServer()
+    monitor_acceptor = TCPAcceptServer('monitor_port', ws, 'MONITOR')
+    monitor_acceptor.startServer()
     httpd = MyHTTPServer(('', 8000), MyHTTPRequestHandler)
     httpd_thr = threading.Thread(target=httpd.serve_forever)
     httpd_thr.name = 'HTTP Listener'
@@ -783,6 +850,8 @@ if __name__ == '__main__':
         except StopRelayException:
             log(None, "relay server exited on SIGHUP")
     httpd.shutdown()
+    console_acceptor.close()
+    monitor_acceptor.close()
     ws.close()
     if ReExec:
         if sys.argv[0] == '' or sys.argv[0] == '-c':
