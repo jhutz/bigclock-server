@@ -606,60 +606,60 @@ class WebSocketServer(object):
     def consoleCommand(self, client, fields):
         global RunRelay, Shutdown, ReExec
         global config
+        def reply(data, nl=True):
+            if not data: data = ''
+            elif nl: data += "\n"
+            self.sendData(data, clients=[client])
+
         log(client['peer'], 'console command %s' % (fields))
         if fields[0] == "version":
-            self.sendData("BigClock server v%s" % (server_version),
-                    clients=[client])
+            reply("BigClock server v%s" % (server_version))
 
         elif fields[0] == "config":
             if len(fields) == 1:   # print config
                 for opt in sorted(config.keys()):
-                    self.sendData("%-15s %s" % (opt, config[opt]),
-                            clients=[client])
+                    reply("%-15s %s" % (opt, config[opt]), nl=False)
+                reply(None)
             elif len(fields) == 2: # print one config item
                 if fields[1] in config:
-                    self.sendData(config[fields[1]], clients=[client])
+                    reply(str(config[fields[1]]))
                 else:
-                    self.sendData("unknown config option %s" % fields[1],
-                            clients=[client])
+                    reply("unknown config option %s" % fields[1])
             else:
                 if fields[1] in config_int:
                     try:
                         config[fields[1]] = int(fields[2])
                     except ValueError:
-                        self.sendData("invalid value %s" % fields[2],
-                                clients=[client])
+                        reply("invalid value %s" % fields[2])
                 elif fields[1] in config:
                     config[fields[1]] = fields[2]
                 else:
-                    self.sendData("unknown config option %s" % fields[1],
-                            clients=[client])
+                    reply("unknown config option %s" % fields[1])
 
         elif fields[0] == "options":
             if len(fields) < 2:
-                self.sendData("options requires a client", clients=[client])
+                reply("options requires a client")
                 return
             if len(fields) < 3:
-                self.sendData("options required", clients=[client])
+                reply("options required")
                 return
             c = self._findClient(fields[1])
             if not c:
-                self.sendData("unknown client %s" % spec, clients=[client])
+                reply("unknown client %s" % spec)
                 return
-            self.sendData("changing client %x options" % c['id'],
-                    clients=[client])
+            reply("changing client %x options" % c['id'])
             self.sendJSON([':OPT', fields[2]], clients=[c])
 
         elif fields[0] == "kick":
             if len(fields) < 2:
-                self.sendData("kick requires a client", clients=[client])
+                reply("kick requires a client")
                 return
             for spec in fields[1:]:
                 c = self._findClient(spec)
                 if not c:
-                    self.sendData("unknown client %s" % spec, clients=[client])
+                    reply("unknown client %s" % spec)
                     continue
-                self.sendData("kicking %x" % c['id'], clients=[client])
+                reply("kicking %x" % c['id'])
                 log(c['peer'], "disconnected via console %s" % client['peer'])
                 self._remove(c)
 
@@ -667,10 +667,10 @@ class WebSocketServer(object):
             if len(fields) >= 2:
                 cc = filter(None, [ self._findClient(c) for c in fields[1:] ])
                 clist = ','.join(['%x' % c['id'] for c in cc])
-                self.sendData('Refreshing %s' % clist, clients=[client])
+                reply('Refreshing %s' % clist)
             else:
                 cc = None
-                self.sendData('Refreshing all clients', clients=[client])
+                reply('Refreshing all clients')
             self.sendJSON([':V', server_version], clients=cc)
             for item in sorted(self.new_client_data.items()):
                 self.sendJSON(item[1], clients=cc)
@@ -679,26 +679,26 @@ class WebSocketServer(object):
             if len(fields) >= 2:
                 cc = filter(None, [ self._findClient(c) for c in fields[1:] ])
                 clist = ','.join(['%x' % c['id'] for c in cc])
-                self.sendData('Reloading %s' % clist, clients=[client])
+                reply('Reloading %s' % clist)
             else:
                 cc = None
-                self.sendData('Reloading all clients', clients=[client])
+                reply('Reloading all clients')
             self.sendJSON([':R'], clients=cc)
 
         elif fields[0] == "reconnect":
-            self.sendData('restarting rmonitor relay', clients=[client])
+            reply('restarting rmonitor relay')
             RunRelay = False
             os.kill(os.getpid(), signal.SIGHUP)
 
         elif fields[0] == "restart":
-            self.sendData('restarting server', clients=[client])
+            reply('restarting server')
             ReExec = True
             Shutdown = True
             RunRelay = False
             os.kill(os.getpid(), signal.SIGHUP)
 
         elif fields[0] == "shutdown":
-            self.sendData('shutting down server', clients=[client])
+            reply('shutting down server')
             Shutdown = True
             RunRelay = False
             os.kill(os.getpid(), signal.SIGHUP)
@@ -722,7 +722,7 @@ class WebSocketServer(object):
                     msg += "   %s\n   HTML %s / CSS %s / JS %s\n   %s\n\n" % (
                             c['user_agent'], c['version_html'],
                             c['version_css'], c['version_js'], c['options'])
-            self.sendData(msg, clients=[client])
+            reply(msg, nl=False)
 
         elif fields[0] == "threads":
             current = threading.current_thread()
@@ -732,13 +732,13 @@ class WebSocketServer(object):
                 fl =  '>' if t is current else ' '
                 fl += 'D' if t.daemon else ' '
                 msg += "%s %12x  %s\n" % (fl, t.ident, t.name)
-            self.sendData(msg, clients=[client])
+            reply(msg, nl=False)
 
         elif fields[0] == "quit":
             self._remove(client)
 
         elif fields[0] == "help":
-            self.sendData("""
+            reply(nl=False, data="""
 The following commands are available
   config [key [value]]   show or change server config settings
   options client opts    change client config options
@@ -758,9 +758,9 @@ The following commands are available
   +<msg>                 set status message to <msg>
   !<msg>                 set error message to <msg>
   ... or any JSON object/array/string, as if sent by a client
-""", clients=[client])
+""")
         else:
-            self.sendData('Unrecognized command %s' % fields[0])
+            reply('Unrecognized command %s' % fields[0])
 
 
 class StopRelayException(Exception): pass
