@@ -442,16 +442,11 @@ class WebSocketServer(object):
                 self._remove(client)
                 break
 
-            if data == "pong":
-                client['last_pong'] = time.time()
-            elif data[0] == ':':
-                self.consoleCommand(client, data[1:].split())
-            elif data[0] == '+':
-                self.sendMessage(data[1:])
-            elif data[0] == '!':
-                self.sendError(data[1:])
+            if   data[0] == '+': self.sendMessage(data[1:])
+            elif data[0] == '!': self.sendError(data[1:])
+            elif data[0] in '{["-0123456789': self.handleData(client, 1, data)
             else:
-                self.handleData(client, 1, data)
+                self.consoleCommand(client, data.split())
 
     def _poll(self):
         pingTimeout = wsPingPeriod * wsMaxPings + 3
@@ -745,24 +740,24 @@ class WebSocketServer(object):
         elif fields[0] == "help":
             self.sendData("""
 The following commands are available
-  +<msg>                  set status message to <msg>
-  !<msg>                  set error message to <msg>
-  :server [host [port]]   show or change rmonitor server (:reconnect to apply)
-  :timezone [zone]        show or change timezone reported to clients
-  :options client opts    change client config options
-  :kick client...         disconnect a client
-  :refresh [client...]    resend cached data to one or all clients
-  :reload [client...]     tell one or all clients to reload page
-  :reconnect              reconnect to rmonitor feed
-  :restart                restart server
-  :shutdown               shut down server
-  :squelch                disable monitor output
-  :unsquelch              enable monitor output
-  :clients [-v]           list connected clients
-  :threads                list active threads
-  :help                   show this help message
-  :version                show server version
-  :quit                   Disconnect console
+  config [key [value]]   show or change server config settings
+  options client opts    change client config options
+  kick client...         disconnect a client
+  refresh [client...]    resend cached data to one or all clients
+  reload [client...]     tell one or all clients to reload page
+  reconnect              reconnect to rmonitor feed
+  restart                restart server
+  shutdown               shut down server
+  squelch                disable monitor output
+  unsquelch              enable monitor output
+  clients [-v]           list connected clients
+  threads                list active threads
+  help                   show this help message
+  version                show server version
+  quit                   Disconnect console
+  +<msg>                 set status message to <msg>
+  !<msg>                 set error message to <msg>
+  ... or any JSON object/array/string, as if sent by a client
 """, clients=[client])
         else:
             self.sendData('Unrecognized command %s' % fields[0])
