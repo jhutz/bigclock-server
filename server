@@ -560,8 +560,9 @@ class WebSocketServer(object):
         self.sendJSON(fields, allClients=True)
 
     def _remove(self, client):
+        try: self.clients.pop(client['id'])
+        except: pass
         try:
-            self.clients.pop(client['id'])
             client['alive'] = False
             client['conn'].close()
         except Exception, e:
