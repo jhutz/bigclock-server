@@ -1,4 +1,3 @@
-- reconnect to rmonitor after too many missed heartbeats
 - configuration gui
 - persistent configuration (registry or dotfile)
 - windows portability

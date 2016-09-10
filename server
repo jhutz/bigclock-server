@@ -32,6 +32,7 @@ config_int = { 'console_port', 'data_port', 'monitor_port', 'rmon_port' }
 
 
 maxMessageLen = 1024
+watchdogTimeout = 5
 wsPingPeriod = 5
 wsMaxPings = 3
 global RunRelay, Shutdown, ReExec
@@ -208,7 +209,7 @@ class WebSocketServer(object):
         self.clients = {}
         self.SERVER_ACTIVE = True
         self.POLLER_ACTIVE = False
-        self.SEND_HEARTBEAT = False
+        self.WATCHDOG_ACTIVE = False
         self.lock = threading.Lock()
         self.new_client_data = {}
 
@@ -466,16 +467,32 @@ class WebSocketServer(object):
                         log(None, 'No Clients, shutting down poller')
                         self.POLLER_ACTIVE = False
                         return
-                if self.SEND_HEARTBEAT:
+                if self.WATCHDOG_ACTIVE:
+                    if now - self.last_watchdog > watchdogTimeout:
+                        self.watchdog_reset()
+                    else:
+                        time.sleep(wsPingPeriod)
+                else:
                     while time.time() < now + wsPingPeriod:
                         self.sendJSON([])
                         time.sleep(1)
-                else:
-                    time.sleep(wsPingPeriod)
         except Exception, e:
             self.POLLER_ACTIVE = False
             print(format())
             print(e)
+
+    def watchdog_disable(self):
+        self.WATCHDOG_ACTIVE = False
+
+    def watchdog_update(self):
+        self.WATCHDOG_ACTIVE = True
+        self.last_watchdog = time.time()
+
+    def watchdog_reset(self):
+        log(None, 'Watchdog reset - restarting relay thread')
+        self.WATCHDOG_ACTIVE = False
+        RunRelay = False
+        os.kill(os.getpid(), signal.SIGHUP)
 
     def startServer(self):
         ws_server_thr = threading.Thread(target=self._bindClient)
@@ -768,11 +785,11 @@ class StopRelayException(Exception): pass
 def StopRelaySignal(signal, frame): raise StopRelayException
 def relay (ws,server,port):
     log(None, "connecting to rmonitor on %s:%d" % (server, port))
-    ws.SEND_HEARTBEAT = True
+    ws.watchdog_disable()
     s = socket.create_connection((server, port))
     log(None, 'Connected to rmonitor feed')
     ws.sendError('')
-    ws.SEND_HEARTBEAT = False
+    ws.watchdog_update()
     rmon = s.makefile("rb")
     s.close()
     rmoncsv = csv.reader(rmon)
@@ -801,6 +818,7 @@ def relay (ws,server,port):
             ws.new_client_data[ '%s%3d' % (fields[0], int(fields[1])) ] = fields
         elif fields[0] in {'$B'}:
             ws.new_client_data[fields[0]] = fields
+        ws.watchdog_update()
         ws.sendJSON(fields)
     log(None, 'relay server exiting')
     rmon.close()
@@ -841,7 +859,7 @@ if __name__ == '__main__':
             except socket.error as e:
                 log(None, str(e))
                 ws.sendError('Lost rmonitor feed')
-            ws.SEND_HEARTBEAT = True
+            ws.watchdog_disable()
             time.sleep(5)
         except StopRelayException:
             log(None, "relay server exited on SIGHUP")
