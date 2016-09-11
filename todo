@@ -1,4 +1,7 @@
-- show clients in gui
+- provide client actions via context menu
+- provide client options edit dialog
+- allow gui to send/update message or error
+- propagate gui timezone changes to clients
 - make view cache button work
 - persistent configuration (registry or dotfile)
 - windows portability

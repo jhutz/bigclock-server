@@ -256,6 +256,7 @@ class WebSocketServer(object):
             client = {
                     'id': clientCode,
                     'peer': peer,
+                    'name': None,
                     'conn': conn,
                     'type': clientType,
                     'squelch': False,
@@ -270,6 +271,7 @@ class WebSocketServer(object):
             with self.lock:
                 self._initClient(client)
                 self.clients[clientCode] = client
+                if gui_app: gui_app.add_client(client)
                 conn = None
                 if clientType == 'WS':
                     client_thr = threading.Thread(target=self._wsClient,
@@ -279,6 +281,7 @@ class WebSocketServer(object):
                     client_thr.start()
                 if clientType == 'CONSOLE':
                     client['squelch'] = True
+                    if gui_app: gui_app.update_client_sql(client)
                     client_thr = threading.Thread(target=self._consClient,
                             args=(client,))
                     client_thr.name = 'client ' + peer
@@ -441,6 +444,7 @@ class WebSocketServer(object):
                 self.sendData(data, opcode=0xa, clients=[client])
             elif opcode == 0xa or (not isctrl and data == "pong"): # pong
                 client['last_pong'] = time.time()
+                if gui_app: gui_app.update_client_pong(client)
                 log(client['peer'], 'pong')
             elif isctrl:
                 log(client['peer'], 'unknown control message %x' % opcode)
@@ -753,9 +757,11 @@ class WebSocketServer(object):
 
         elif fields[0] == "squelch":
             client['squelch'] = True
+            if gui_app: gui_app.update_client_sql(client)
 
         elif fields[0] == "unsquelch":
             client['squelch'] = False
+            if gui_app: gui_app.update_client_sql(client)
 
         elif fields[0] == "clients":
             msg =  "      Client ID  Type     LastSeen  IP Address : Port\n"
@@ -928,6 +934,7 @@ class RMonitorRelay(object):
         self.SHUTDOWN = True
         self.kill()
 
+
 FILL_PARENT = tk.N+tk.S+tk.E+tk.W
 
 class ScrolledLogFrame(ScrolledText.ScrolledText):
@@ -942,7 +949,6 @@ class ScrolledLogFrame(ScrolledText.ScrolledText):
                 lambda *args, **kw: "break")
         self.replace = self.redirector.register('replace',
                 lambda *args, **kw: "break")
-        self.configure(insertofftime=0)
         self.bind('<1>', lambda event: self.focus_set())
         self.maxLines = maxLines
         self.queue = Queue.Queue()
@@ -973,6 +979,126 @@ class ScrolledLogFrame(ScrolledText.ScrolledText):
     def clear(self):
         self.delete('1.0', tk.END)
         self.empty = True
+
+class BigClockClient(object):
+    def __init__(self, master, client):
+        self.client = client
+        self.sql_v  = tk.BooleanVar()
+        self.pong_v = tk.StringVar()
+        self.name_v = tk.StringVar()
+        self.set_pong(client['last_pong'])
+
+        self.sql_btn = tk.Checkbutton(master, onvalue=True, offvalue=False,
+                anchor=tk.CENTER, borderwidth=0, bg='white', highlightbackground='white',
+                variable=self.sql_v, command=self.squelch_pushed)
+        self.cid  = tk.Label(master, bg='white', anchor=tk.W, width=10, text='%x' % client['id'])
+        self.type = tk.Label(master, bg='white', anchor=tk.W, width= 8, text=client['type'])
+        self.pong = tk.Label(master, bg='white', anchor=tk.W, width= 8, textvariable=self.pong_v)
+        self.name = tk.Label(master, bg='white', anchor=tk.W, width=15, textvariable=self.name_v)
+        self.peer = tk.Label(master, bg='white', anchor=tk.W, width=15, text=client['peer'])
+        self.actions = tk.Frame(master, bg='white')
+        self.push_btn   = tk.Button(self.actions, text='Push', command=self.push)
+        self.reload_btn = tk.Button(self.actions, text='Reload', command=self.reload)
+        self.kick_btn   = tk.Button(self.actions, text='Kick', command=self.kick)
+        self.push_btn.grid  (row=0, column=0)
+        self.reload_btn.grid(row=0, column=1)
+        self.kick_btn.grid  (row=0, column=2)
+
+    def regrid(self,row):
+        self.sql_btn.grid(row=row, column=0, padx=1, sticky=FILL_PARENT)
+        self.cid.grid    (row=row, column=1, padx=1, sticky=tk.N+tk.S+tk.W)
+        self.type.grid   (row=row, column=2, padx=1, sticky=tk.N+tk.S+tk.W)
+        self.pong.grid   (row=row, column=3, padx=1, sticky=tk.N+tk.S+tk.W)
+        self.name.grid   (row=row, column=4, padx=1, sticky=tk.N+tk.S+tk.W)
+        self.peer.grid   (row=row, column=5, padx=1, sticky=tk.N+tk.S+tk.W)
+        self.actions.grid(row=row, column=6, padx=1, sticky=tk.N+tk.S+tk.W+tk.E)
+
+    def push(self):
+        log(None, 'refreshing %x' % self.client['id'])
+        ws.refreshClients(clients=[self.client])
+
+    def reload(self):
+        log(None, 'reloading %x' % self.client['id'])
+        ws.sendJSON([':R'], clients=[self.client])
+
+    def kick(self):
+        log(None, 'disconnecting %x' % self.client['id'])
+        ws._remove(self.client)
+
+    def squelch_pushed(self): self.client['squelch'] = self.sql_v.get()
+    def set_squelch(self,state): self.sql_v.set(state)
+    def set_name(self,name): self.name_v.set(name)
+    def set_pong(self,when): self.pong_v.set(time.strftime('%H:%M:%S', time.localtime(when)))
+
+class BigClockClientList(tk.Frame):
+    def __init__(self, master):
+        self.clients = {}
+        self.n_clients = 0
+        tk.Frame.__init__(self, master)
+        self.columnconfigure(0, weight=1)
+        self.rowconfigure(1, weight=1)
+
+        # Framework
+        self.header_frame = hf = tk.Frame(self, bg='black')
+        self.canvas = tk.Canvas(self)
+        self.canvas.columnconfigure(0, weight=1)
+        self.canvas.rowconfigure(1, weight=1)
+        self.rows = tk.Frame(self.canvas, bg='black', borderwidth=0)
+        self.empty_space = tk.Canvas(self.canvas, bg='white', borderwidth=0)
+        self.scrollbar = tk.Scrollbar(self, orient=tk.VERTICAL)
+        self.canvas['yscrollcommand'] = self.scrollbar.set
+        self.scrollbar['command'] = self.canvas.yview
+        self.header_frame.grid(row=0, column=0, ipady=1, sticky=tk.W+tk.E)
+        self.canvas.grid(row=1, column=0, sticky=FILL_PARENT)
+        self.scrollbar.grid(row=1, column=1, sticky=tk.N+tk.S)
+        self.rows.grid(row=0, column=0, sticky=tk.N+tk.W+tk.E)
+        self.empty_space.grid(row=1, column=0, sticky=FILL_PARENT)
+
+        # Column Headers and Widths
+        bgcol = '#d9d9d9'
+        self.header_frame.columnconfigure(0, minsize=35)
+        self.header_frame.columnconfigure(6, minsize=200, weight=1)
+        self.rows.columnconfigure(0, minsize=35)
+        self.rows.columnconfigure(6, minsize=200, weight=1)
+        self.sql_header  = tk.Label(hf, anchor=tk.CENTER, bg=bgcol, text='Sql')
+        self.cid_header  = tk.Label(hf, anchor=tk.W, bg=bgcol, width=10, text='Client ID')
+        self.type_header = tk.Label(hf, anchor=tk.W, bg=bgcol, width= 8, text='Type')
+        self.pong_header = tk.Label(hf, anchor=tk.W, bg=bgcol, width= 8, text='Last Seen')
+        self.name_header = tk.Label(hf, anchor=tk.W, bg=bgcol, width=15, text='Name')
+        self.peer_header = tk.Label(hf, anchor=tk.W, bg=bgcol, width=15, text='IP Address:Port')
+        self.act_header  = tk.Label(hf, anchor=tk.W, bg=bgcol, width=25, text='Actions')
+
+        self.sql_header.grid (row=0, column=0, padx=1, sticky=FILL_PARENT)
+        self.cid_header.grid (row=0, column=1, padx=1, sticky=tk.W)
+        self.type_header.grid(row=0, column=2, padx=1, sticky=tk.W)
+        self.pong_header.grid(row=0, column=3, padx=1, sticky=tk.W)
+        self.name_header.grid(row=0, column=4, padx=1, sticky=tk.W)
+        self.peer_header.grid(row=0, column=5, padx=1, sticky=tk.W)
+        self.act_header.grid (row=0, column=6, padx=1, sticky=tk.W+tk.E)
+
+        self.queue = Queue.Queue()
+        self.after(100, self.process_queue)
+
+    def process_queue(self):
+        try:
+            while True:
+                (op, client) = self.queue.get_nowait()
+                if   op == 'add':
+                    self.clients[client['id']] = c = BigClockClient(self.rows, client)
+                    c.regrid(self.n_clients)
+                    self.n_clients += 1
+                    continue
+                c = self.clients.get(client['id'])
+                if not c: continue
+                if op == 'del':
+                    pass #XXX
+                elif op == 'sql': c.set_squelch(client['squelch'])
+                elif op == 'nam': c.set_name(client['name'])
+                elif op == 'ack': c.set_pong(client['last_pong'])
+        except Queue.Empty:
+            pass
+        finally:
+            self.after(100, self.process_queue)
 
 class BigClockGUI(tk.Frame):
     def __init__(self, master=None):
@@ -1050,7 +1176,7 @@ class BigClockGUI(tk.Frame):
         self.data_frame = tk.LabelFrame(self, text='Recent Data')
         self.data_frame.rowconfigure(0, weight=1)
         self.data_frame.columnconfigure(0, weight=1)
-        self.data_log = ScrolledLogFrame(self.data_frame, maxLines=60)
+        self.data_log = ScrolledLogFrame(self.data_frame, height=5, maxLines=60)
         self.data_log.grid(sticky=FILL_PARENT)
 
         self.data_buttons = tk.Frame(self.data_frame)
@@ -1071,18 +1197,23 @@ class BigClockGUI(tk.Frame):
         self.client_frame = tk.LabelFrame(self, text='Active Clients')
         self.client_frame.rowconfigure(0, weight=1)
         self.client_frame.columnconfigure(0, weight=1)
+        self.client_list = BigClockClientList(self.client_frame)
+        self.client_list.grid(sticky=FILL_PARENT)
         self.panes.add(self.client_frame, sticky=FILL_PARENT)
 
         # Log Messages
         self.msg_frame = tk.LabelFrame(self, text='System Messages')
         self.msg_frame.rowconfigure(0, weight=1)
         self.msg_frame.columnconfigure(0, weight=1)
-        self.msg_log = ScrolledLogFrame(self.msg_frame, maxLines=1000)
+        self.msg_log = ScrolledLogFrame(self.msg_frame, height=10, maxLines=1000)
         self.msg_log.grid(sticky=FILL_PARENT)
         self.clear_msg_btn = tk.Button(self.msg_frame, text='Clear Log',
                 command=self.msg_log.clear)
         self.clear_msg_btn.grid(row=1, column=0, sticky=tk.E)
         self.panes.add(self.msg_frame, sticky=FILL_PARENT)
+
+    def refresh_clients(self):
+        ws.refreshClients()
 
     def relay_state(self,state):
         if state:
@@ -1092,8 +1223,10 @@ class BigClockGUI(tk.Frame):
             self.rmon_state['text'] = "Connection Lost"
             self.rmon_state['fg']   = "red"
 
-    def refresh_clients(self):
-        rmon_relay.ws.refreshClients()
+    def add_client(self,client):         self.client_list.queue.put(('add', client))
+    def remove_client(self,client):      self.client_list.queue.put(('del', client))
+    def update_client_pong(self,client): self.client_list.queue.put(('ack', client))
+    def update_client_sql(self,client):  self.client_list.queue.put(('sql', client))
 
     def log(self,msg):
         self.msg_log.appendMsg(msg)
