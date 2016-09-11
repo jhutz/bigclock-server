@@ -932,7 +932,9 @@ FILL_PARENT = tk.N+tk.S+tk.E+tk.W
 
 class ScrolledLogFrame(ScrolledText.ScrolledText):
     def __init__(self, master, maxLines=None, **kwargs):
-        ScrolledText.ScrolledText.__init__(self, master, **kwargs)
+        kw = { 'insertofftime' : 0, 'width' : 80 }
+        kw.update(kwargs)
+        ScrolledText.ScrolledText.__init__(self, master, **kw)
         self.redirector = WidgetRedirector(self)
         self.insert = self.redirector.register('insert',
                 lambda *args, **kw: "break")
