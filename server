@@ -611,8 +611,8 @@ class WebSocketServer(object):
         self.sendJSON(fields, allClients=True)
 
     def _remove(self, client):
-        try: self.clients.pop(client['id'])
-        except: pass
+        self.clients.pop(client['id'], None)
+        if gui_app: gui_app.remove_client(client)
         try:
             client['alive'] = False
             client['conn'].close()
@@ -1004,7 +1004,17 @@ class BigClockClient(object):
         self.reload_btn.grid(row=0, column=1)
         self.kick_btn.grid  (row=0, column=2)
 
+    def destroy(self):
+        self.sql_btn.grid_forget(); self.sql_btn.destroy()
+        self.cid.grid_forget();     self.cid.destroy()
+        self.type.grid_forget();    self.type.destroy()
+        self.pong.grid_forget();    self.pong.destroy()
+        self.name.grid_forget();    self.name.destroy()
+        self.peer.grid_forget();    self.peer.destroy()
+        self.actions.grid_forget(); self.actions.destroy()
+
     def regrid(self,row):
+        self.row = row
         self.sql_btn.grid(row=row, column=0, padx=1, sticky=FILL_PARENT)
         self.cid.grid    (row=row, column=1, padx=1, sticky=tk.N+tk.S+tk.W)
         self.type.grid   (row=row, column=2, padx=1, sticky=tk.N+tk.S+tk.W)
@@ -1043,7 +1053,7 @@ class BigClockClientList(tk.Frame):
         self.canvas = tk.Canvas(self)
         self.canvas.columnconfigure(0, weight=1)
         self.canvas.rowconfigure(1, weight=1)
-        self.rows = tk.Frame(self.canvas, bg='black', borderwidth=0)
+        self._makeRows()
         self.empty_space = tk.Canvas(self.canvas, bg='white', borderwidth=0)
         self.scrollbar = tk.Scrollbar(self, orient=tk.VERTICAL)
         self.canvas['yscrollcommand'] = self.scrollbar.set
@@ -1051,15 +1061,12 @@ class BigClockClientList(tk.Frame):
         self.header_frame.grid(row=0, column=0, ipady=1, sticky=tk.W+tk.E)
         self.canvas.grid(row=1, column=0, sticky=FILL_PARENT)
         self.scrollbar.grid(row=1, column=1, sticky=tk.N+tk.S)
-        self.rows.grid(row=0, column=0, sticky=tk.N+tk.W+tk.E)
         self.empty_space.grid(row=1, column=0, sticky=FILL_PARENT)
 
         # Column Headers and Widths
         bgcol = '#d9d9d9'
         self.header_frame.columnconfigure(0, minsize=35)
         self.header_frame.columnconfigure(6, minsize=200, weight=1)
-        self.rows.columnconfigure(0, minsize=35)
-        self.rows.columnconfigure(6, minsize=200, weight=1)
         self.sql_header  = tk.Label(hf, anchor=tk.CENTER, bg=bgcol, text='Sql')
         self.cid_header  = tk.Label(hf, anchor=tk.W, bg=bgcol, width=10, text='Client ID')
         self.type_header = tk.Label(hf, anchor=tk.W, bg=bgcol, width= 8, text='Type')
@@ -1079,22 +1086,42 @@ class BigClockClientList(tk.Frame):
         self.queue = Queue.Queue()
         self.after(100, self.process_queue)
 
+    def _makeRows(self):
+        if getattr(self, 'rows', None):
+            self.rows.grid_forget()
+            self.rows.destroy()
+        self.rows = tk.Frame(self.canvas, bg='black', borderwidth=0)
+        self.rows.columnconfigure(0, minsize=35)
+        self.rows.columnconfigure(6, minsize=200, weight=1)
+        self.rows.grid(row=0, column=0, sticky=tk.N+tk.W+tk.E)
+
+    def regrid_clients(self,key=lambda x: x.row):
+        clients = sorted(self.clients.values(), key=key)
+        row = 0
+        for c in clients:
+            c.regrid(row)
+            row += 1
+
     def process_queue(self):
         try:
             while True:
                 (op, client) = self.queue.get_nowait()
-                if   op == 'add':
+                if op == 'add':
                     self.clients[client['id']] = c = BigClockClient(self.rows, client)
                     c.regrid(self.n_clients)
                     self.n_clients += 1
-                    continue
-                c = self.clients.get(client['id'])
-                if not c: continue
-                if op == 'del':
-                    pass #XXX
-                elif op == 'sql': c.set_squelch(client['squelch'])
-                elif op == 'nam': c.set_name(client['name'])
-                elif op == 'ack': c.set_pong(client['last_pong'])
+                elif op == 'del':
+                    c = self.clients.pop(client['id'], None)
+                    if c: c.destroy()
+                    self.n_clients = len(self.clients)
+                    if self.n_clients: self.regrid_clients()
+                    else: self._makeRows()
+                else:
+                    c = self.clients.get(client['id'])
+                    if not c: continue
+                    elif op == 'sql': c.set_squelch(client['squelch'])
+                    elif op == 'nam': c.set_name(client['name'])
+                    elif op == 'ack': c.set_pong(client['last_pong'])
         except Queue.Empty:
             pass
         finally:
