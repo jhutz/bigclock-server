@@ -35,10 +35,8 @@ maxMessageLen = 1024
 watchdogTimeout = 5
 wsPingPeriod = 5
 wsMaxPings = 3
-global RunRelay, Shutdown, ReExec
-RunRelay = True
-Shutdown = False
-ReExec   = False
+global rmon_relay, ReExec
+ReExec = False
 
 
 def log(peer, msg):
@@ -491,8 +489,7 @@ class WebSocketServer(object):
     def watchdog_reset(self):
         log(None, 'Watchdog reset - restarting relay thread')
         self.WATCHDOG_ACTIVE = False
-        RunRelay = False
-        os.kill(os.getpid(), signal.SIGHUP)
+        rmon_relay.kill()
 
     def startServer(self):
         ws_server_thr = threading.Thread(target=self._bindClient)
@@ -622,7 +619,7 @@ class WebSocketServer(object):
         return None
 
     def consoleCommand(self, client, fields):
-        global RunRelay, Shutdown, ReExec
+        global ReExec
         global config
         def reply(data, nl=True):
             if not data: data = ''
@@ -705,21 +702,15 @@ class WebSocketServer(object):
 
         elif fields[0] == "reconnect":
             reply('restarting rmonitor relay')
-            RunRelay = False
-            os.kill(os.getpid(), signal.SIGHUP)
+            rmon_relay.kill()
 
         elif fields[0] == "restart":
             reply('restarting server')
-            ReExec = True
-            Shutdown = True
-            RunRelay = False
-            os.kill(os.getpid(), signal.SIGHUP)
+            restart_server()
 
         elif fields[0] == "shutdown":
             reply('shutting down server')
-            Shutdown = True
-            RunRelay = False
-            os.kill(os.getpid(), signal.SIGHUP)
+            shutdown_server()
 
         elif fields[0] == "squelch":
             client['squelch'] = True
@@ -780,50 +771,130 @@ The following commands are available
         else:
             reply('Unrecognized command %s' % fields[0])
 
+class RMonitorRelay(object):
+    def __init__(self,ws):
+        self.ws = ws
+        self.socket = None
+        self.rmon_file = None
+        self.RELAY_ACTIVE = False
+        self.SHUTDOWN = False
+        self.shutdown_complete = threading.Event()
+        self.close_lock = threading.Lock()
 
-class StopRelayException(Exception): pass
-def StopRelaySignal(signal, frame): raise StopRelayException
-def relay (ws,server,port):
-    log(None, "connecting to rmonitor on %s:%d" % (server, port))
-    ws.watchdog_disable()
-    s = socket.create_connection((server, port))
-    log(None, 'Connected to rmonitor feed')
-    ws.sendError('')
-    ws.watchdog_update()
-    rmon = s.makefile("rb")
-    s.close()
-    rmoncsv = csv.reader(rmon)
-    while RunRelay:
+    def _close(self):
+        with self.close_lock:
+            if self.rmon_file:
+                try:
+                    self.rmon_file.close()
+                except:
+                    pass
+                finally:
+                    self.rmon_file = None
+            if self.socket:
+                try:
+                    self.socket.shutdown(socket.SHUT_RDWR)
+                    self.socket.close()
+                except:
+                    pass
+                finally:
+                    self.socket = None
+
+    def _relay(self):
+        error_cleared = False
+        self.ws.watchdog_disable()
+        self.RELAY_ACTIVE = True
+        server = (config['rmon_server'], config['rmon_port'])
+        log(None, 'Connecting to RMonitor feed at %s:%d' % server)
+
         try:
-            fields = rmoncsv.next()
-        except StopIteration:
-            log(None, 'Lost connection to rmonitor feed')
+            self.socket = socket.create_connection(server, 5)
+            self.socket.setblocking(True)
+            self.rmon_file = self.socket.makefile("rb")
+            rmon_csv = csv.reader(self.rmon_file)
+        except:
+            self._close()
+            raise
+
+        try:
+            log(None, 'RMonitor feed connected')
+            self.ws.watchdog_update()
+
+            while self.RELAY_ACTIVE:
+                try: fields = rmon_csv.next()
+                except StopIteration: break
+                if not fields:
+                    break
+                print(json.dumps(fields))
+                # Update the cache before sending the data.  This insures that
+                # any new client will see this data, because new clients are
+                # sent the entire cache before being added to the send list,
+                # and locking prevents any all-clients sends in between.
+                if   fields[0] == '$I':
+                    self.ws.new_client_data.clear()
+                    self.ws.new_client_data[''] = fields
+                elif fields[0] in {'$A' }:
+                    self.ws.new_client_data[ '%s%s' % (fields[0], fields[1]) ] = fields
+                elif fields[0] in {'$G'}:
+                    self.ws.new_client_data[ '%s%3d' % (fields[0], int(fields[1])) ] = fields
+                elif fields[0] in {'$B'}:
+                    self.ws.new_client_data[fields[0]] = fields
+                self.ws.watchdog_update()
+                self.ws.sendJSON(fields)
+                if not error_cleared:
+                    self.ws.sendError('')
+                    error_cleared = True
+        finally:
+            self.ws.watchdog_disable()
+            self._close()
+            log(None, 'RMonitor relay disconnected')
             ws.sendError('Lost rmonitor feed')
-            break
-        if not fields:
-            log(None, 'Lost connection to rmonitor feed')
-            ws.sendError('Lost rmonitor feed')
-            break
-        print(json.dumps(fields))
-        # Update the cache before sending the data.  This insures that
-        # any new client will see this data, because new clients are
-        # sent the entire cache before being added to the send list,
-        # and locking prevents any all-clients sends in between.
-        if   fields[0] == '$I':
-            ws.new_client_data.clear()
-            ws.new_client_data[''] = fields
-        elif fields[0] in {'$A' }:
-            ws.new_client_data[ '%s%s' % (fields[0], fields[1]) ] = fields
-        elif fields[0] in {'$G'}:
-            ws.new_client_data[ '%s%3d' % (fields[0], int(fields[1])) ] = fields
-        elif fields[0] in {'$B'}:
-            ws.new_client_data[fields[0]] = fields
-        ws.watchdog_update()
-        ws.sendJSON(fields)
-    log(None, 'relay server exiting')
-    rmon.close()
+
+    def run(self):
+        try:
+            while not self.SHUTDOWN:
+                try:
+                    self._relay()
+                except socket.error as e:
+                    # ignore socket errors if we're shutting down
+                    if self.RELAY_ACTIVE:
+                        log(None, str(e))
+                        ws.sendError('Lost rmonitor feed')
+                if self.RELAY_ACTIVE and not self.SHUTDOWN:
+                    time.sleep(5)
+        finally:
+            log(None, 'RMonitor relay shut down')
+            self.shutdown_complete.set()
+
+    def start(self):
+        server_thread = threading.Thread(target=self.run)
+        server_thread.name = 'RMonitor Relay'
+        server_thread.daemon = True
+        server_thread.start()
+
+    def kill(self):
+        self.RELAY_ACTIVE = False
+        self._close()
+
+    def wait(self):
+        try:
+            while not self.shutdown_complete.wait(0.5): pass
+        except KeyboardInterrupt:
+            pass
+
+    def shutdown(self):
+        self.SHUTDOWN = True
+        self.kill()
+
+def shutdown_server():
+    rmon_relay.shutdown()
+
+def restart_server():
+    global ReExec
+    ReExec = True
+    shutdown_server()
 
 if __name__ == '__main__':
+    global rmon_relay
     # Handle command-line arguments
     if len(sys.argv) > 1: config['rmon_server'] = sys.argv[1]
     if len(sys.argv) > 2: config['rmon_port']   = int(sys.argv[2])
@@ -836,36 +907,29 @@ if __name__ == '__main__':
         pass
     log(None, "BigClock server v%s" % (server_version))
 
-    signal.signal(signal.SIGHUP, StopRelaySignal)
     # Start WebSocket and HTTP servers
     ws = WebSocketServer()
-    ws.startServer()
     console_acceptor = TCPAcceptServer('console_port', ws, 'CONSOLE')
-    console_acceptor.startServer()
     monitor_acceptor = TCPAcceptServer('monitor_port', ws, 'MONITOR')
+    rmon_relay = RMonitorRelay(ws)
+
+    ws.startServer()
+    console_acceptor.startServer()
     monitor_acceptor.startServer()
+    rmon_relay.start()
+
     httpd = MyHTTPServer(('', 8000), MyHTTPRequestHandler)
     httpd_thr = threading.Thread(target=httpd.serve_forever)
     httpd_thr.name = 'HTTP Listener'
     httpd_thr.daemon = True
     httpd_thr.start()
 
-    # Run the relay
-    while not Shutdown:
-        try:
-            try:
-                RunRelay = True
-                relay(ws, config['rmon_server'], config['rmon_port'])
-            except socket.error as e:
-                log(None, str(e))
-                ws.sendError('Lost rmonitor feed')
-            ws.watchdog_disable()
-            time.sleep(5)
-        except StopRelayException:
-            log(None, "relay server exited on SIGHUP")
+    rmon_relay.wait()
+
     httpd.shutdown()
     console_acceptor.close()
     monitor_acceptor.close()
+    #rmon_relay.shutdown()
     ws.close()
     if ReExec:
         if sys.argv[0] == '' or sys.argv[0] == '-c':
