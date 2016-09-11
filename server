@@ -825,8 +825,8 @@ def relay (ws,server,port):
 
 if __name__ == '__main__':
     # Handle command-line arguments
-    if len(sys.argv) > 1: config['rmon_server'] = sys.argv[1];
-    if len(sys.argv) > 2: config['rmon_port']   = sys.argv[2];
+    if len(sys.argv) > 1: config['rmon_server'] = sys.argv[1]
+    if len(sys.argv) > 2: config['rmon_port']   = int(sys.argv[2])
 
     # Compute and report server version
     try:
