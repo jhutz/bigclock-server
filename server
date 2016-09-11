@@ -74,8 +74,9 @@ def log(peer, msg):
     preamble = time.strftime('%b %d %H:%M:%S')
     if peer != None:
         preamble += ' ' + peer
-    print(preamble + ' ' + msg)
-    if gui_app: gui_app.log(preamble + ' ' + msg)
+    msg = preamble + ' ' + msg
+    if gui_app: gui_app.log(msg)
+    else: sys.stdout.write(msg + '\n')
 
 def cloexec(sock):
     flags = fcntl.fcntl(sock.fileno(), fcntl.F_GETFD)
@@ -864,8 +865,8 @@ class RMonitorRelay(object):
                 if not fields:
                     break
                 jd = json.dumps(fields)
-                print(jd)
                 if gui_app: gui_app.report(jd)
+                else: sys.stdout.write(jd + '\n')
                 # Update the cache before sending the data.  This insures that
                 # any new client will see this data, because new clients are
                 # sent the entire cache before being added to the send list,
