@@ -1,4 +1,5 @@
-- configuration gui
+- show clients in gui
+- make view cache button work
 - persistent configuration (registry or dotfile)
 - windows portability
 - windows packaging

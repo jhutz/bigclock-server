@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 
 import Tkinter as tk
+from idlelib.WidgetRedirector import WidgetRedirector
+import ScrolledText
 import UserDict
 import BaseHTTPServer
 import SimpleHTTPServer
@@ -8,6 +10,7 @@ import socket
 import struct
 import hashlib
 import threading
+import Queue
 import base64
 import array
 import time
@@ -72,6 +75,7 @@ def log(peer, msg):
     if peer != None:
         preamble += ' ' + peer
     print(preamble + ' ' + msg)
+    if gui_app: gui_app.log(preamble + ' ' + msg)
 
 def cloexec(sock):
     flags = fcntl.fcntl(sock.fileno(), fcntl.F_GETFD)
@@ -517,7 +521,7 @@ class WebSocketServer(object):
     def watchdog_reset(self):
         log(None, 'Watchdog reset - restarting relay thread')
         self.WATCHDOG_ACTIVE = False
-        rmon_relay.kill()
+        restart_relay()
 
     def startServer(self):
         ws_server_thr = threading.Thread(target=self._bindClient)
@@ -646,8 +650,12 @@ class WebSocketServer(object):
             if spec == c['peer']:      return c
         return None
 
+    def refreshClients(self, clients=None):
+        self.sendJSON([':V', server_version], clients=clients)
+        for item in sorted(self.new_client_data.items()):
+            self.sendJSON(item[1], clients=clients)
+
     def consoleCommand(self, client, fields):
-        global ReExec
         def reply(data, nl=True):
             if not data: data = ''
             elif nl: data += "\n"
@@ -718,9 +726,7 @@ class WebSocketServer(object):
             else:
                 cc = None
                 reply('Refreshing all clients')
-            self.sendJSON([':V', server_version], clients=cc)
-            for item in sorted(self.new_client_data.items()):
-                self.sendJSON(item[1], clients=cc)
+            self.refreshClients()
 
         elif fields[0] == "reload":
             if len(fields) >= 2:
@@ -734,7 +740,7 @@ class WebSocketServer(object):
 
         elif fields[0] == "reconnect":
             reply('restarting rmonitor relay')
-            rmon_relay.kill()
+            restart_relay()
 
         elif fields[0] == "restart":
             reply('restarting server')
@@ -850,13 +856,16 @@ class RMonitorRelay(object):
         try:
             log(None, 'RMonitor feed connected')
             self.ws.watchdog_update()
+            if gui_app: gui_app.relay_state(True)
 
             while self.RELAY_ACTIVE:
                 try: fields = rmon_csv.next()
                 except StopIteration: break
                 if not fields:
                     break
-                print(json.dumps(fields))
+                jd = json.dumps(fields)
+                print(jd)
+                if gui_app: gui_app.report(jd)
                 # Update the cache before sending the data.  This insures that
                 # any new client will see this data, because new clients are
                 # sent the entire cache before being added to the send list,
@@ -880,6 +889,7 @@ class RMonitorRelay(object):
             self._close()
             log(None, 'RMonitor relay disconnected')
             ws.sendError('Lost rmonitor feed')
+            if gui_app: gui_app.relay_state(False)
 
     def run(self):
         try:
@@ -917,18 +927,176 @@ class RMonitorRelay(object):
         self.SHUTDOWN = True
         self.kill()
 
+FILL_PARENT = tk.N+tk.S+tk.E+tk.W
+
+class ScrolledLogFrame(ScrolledText.ScrolledText):
+    def __init__(self, master, maxLines=None, **kwargs):
+        ScrolledText.ScrolledText.__init__(self, master, **kwargs)
+        self.redirector = WidgetRedirector(self)
+        self.insert = self.redirector.register('insert',
+                lambda *args, **kw: "break")
+        self.delete = self.redirector.register('delete',
+                lambda *args, **kw: "break")
+        self.replace = self.redirector.register('replace',
+                lambda *args, **kw: "break")
+        self.configure(insertofftime=0)
+        self.bind('<1>', lambda event: self.focus_set())
+        self.maxLines = maxLines
+        self.queue = Queue.Queue()
+        self.after(100, self.process_queue)
+        self.empty = True
+
+    def process_queue(self):
+        try:
+            while True:
+                msg = self.queue.get_nowait()
+                (a,b) = self.vbar.get()
+                if self.empty:
+                    self.empty = False
+                else:
+                    self.insert(tk.END, '\n')
+                self.insert(tk.END, msg)
+                if self.maxLines:
+                    self.delete('1.0', 'end linestart - %d lines' % self.maxLines)
+                if b >= 1.0: self.see(tk.END)
+        except Queue.Empty:
+            pass
+        finally:
+            self.after(100, self.process_queue)
+
+    def appendMsg(self, msg):
+        self.queue.put(msg)
+
+    def clear(self):
+        self.delete('1.0', tk.END)
+        self.empty = True
 
 class BigClockGUI(tk.Frame):
     def __init__(self, master=None):
         global config
         tk.Frame.__init__(self, master)
         config = TkConfigVars(config, intkeys=config_int)
-        self.grid()
+        self.winfo_toplevel().rowconfigure(0, weight=1)
+        self.winfo_toplevel().columnconfigure(0, weight=1)
+        self.grid(sticky=FILL_PARENT)
         self.createWidgets()
 
     def createWidgets(self):
-        self.quit_btn = tk.Button(self, text='Quit', command=self.quit)
-        self.quit_btn.grid()
+        self.config_frame = cf = tk.Frame(self)
+        self.config_frame.columnconfigure(6, weight=1)
+
+        # Configuration Labels
+        self.rmon_label = tk.Label(cf, anchor=tk.W, text="RMonitor Feed:")
+        self.rmon_state = tk.Label(cf, anchor=tk.W)
+        self.data_label = tk.Label(cf, anchor=tk.W, text="Data Feed Port:")
+        self.mon_label  = tk.Label(cf, anchor=tk.W, text="Monitor Port:")
+        self.cons_label = tk.Label(cf, anchor=tk.W, text="Console Port:")
+        self.http_label = tk.Label(cf, anchor=tk.W, text="Web Server Port:")
+        self.tz_label   = tk.Label(cf, anchor=tk.W, text="Time Zone:")
+
+        # Configuration Data Fields
+        self.rmon_port  = tk.Entry(cf, width=6, textvariable=config.var('rmon_port'))
+        self.http_entry = tk.Entry(cf, width=6, textvariable=config.var('http_port'))
+        self.data_entry = tk.Entry(cf, width=6, textvariable=config.var('data_port'))
+        self.cons_entry = tk.Entry(cf, width=6, textvariable=config.var('console_port'))
+        self.mon_entry  = tk.Entry(cf, width=6, textvariable=config.var('monitor_port'))
+        self.tz_entry   = tk.Entry(cf, textvariable=config.var('timezone'))
+
+        # Special composite box for rmonitor host:
+        self.rmon_entry = tk.Frame(cf)
+        self.rmon_sep = tk.Label(self.rmon_entry, text=":")
+        self.rmon_host = tk.Entry(self.rmon_entry, width=16, textvariable=config.var('rmon_server'))
+        self.rmon_host.grid(row=0, column=0, sticky=tk.W+tk.E)
+        self.rmon_sep.grid (row=0, column=1, sticky=tk.E)
+
+        # Configuration Layout
+        self.rmon_label.grid(row=0, column=0, sticky=tk.W)
+        self.rmon_entry.grid(row=0, column=1, sticky=tk.W+tk.E, columnspan=2)
+        self.rmon_port.grid (row=0, column=3, sticky=tk.W)
+        self.rmon_state.grid(row=0, column=4, sticky=tk.W, columnspan=2)
+        self.data_label.grid(row=1, column=0, sticky=tk.W)
+        self.data_entry.grid(row=1, column=1, sticky=tk.W)
+        self.mon_label.grid (row=1, column=2, sticky=tk.W)
+        self.mon_entry.grid (row=1, column=3, sticky=tk.W)
+        self.cons_label.grid(row=1, column=4, sticky=tk.W)
+        self.cons_entry.grid(row=1, column=5, sticky=tk.W)
+        self.http_label.grid(row=2, column=0, sticky=tk.W)
+        self.http_entry.grid(row=2, column=1, sticky=tk.W)
+        self.tz_label.grid  (row=2, column=2, sticky=tk.W)
+        self.tz_entry.grid  (row=2, column=3, sticky=tk.W, columnspan=3)
+
+        # Global Actions
+        self.action_frame = af = tk.Frame(cf)
+
+        self.reconn_btn = tk.Button(af, text='Reconnect', command=restart_relay)
+        self.reexec_btn = tk.Button(af, text='Restart', command=restart_server)
+        self.quit_btn   = tk.Button(af, text='Quit', command=self.quit)
+
+        self.reconn_btn.grid(row=0, column=0, sticky=tk.W+tk.E)
+        self.reexec_btn.grid(row=1, column=0, sticky=tk.W+tk.E)
+        self.quit_btn.grid  (row=2, column=0, sticky=tk.W+tk.E)
+        self.action_frame.grid(row=0, column=6, sticky=tk.NE, rowspan=3)
+        self.config_frame.grid(sticky=tk.N+tk.W+tk.E)
+
+        self.columnconfigure(0, weight=1)
+        self.rowconfigure(1, weight=1)
+        self.panes = tk.PanedWindow(self, orient=tk.VERTICAL, showhandle=True)
+        self.panes.grid(sticky=FILL_PARENT)
+
+        # Recent Data
+        self.data_frame = tk.LabelFrame(self, text='Recent Data')
+        self.data_frame.rowconfigure(0, weight=1)
+        self.data_frame.columnconfigure(0, weight=1)
+        self.data_log = ScrolledLogFrame(self.data_frame, maxLines=60)
+        self.data_log.grid(sticky=FILL_PARENT)
+
+        self.data_buttons = tk.Frame(self.data_frame)
+        self.data_buttons.columnconfigure(2, weight=1)
+        self.refresh_btn = tk.Button(self.data_buttons, text='Send Refresh',
+                command=self.refresh_clients)
+        self.cache_btn = tk.Button(self.data_buttons, text='View Cache') #XXX
+        self.clear_data_btn = tk.Button(self.data_buttons, text='Clear Data',
+                command=self.data_log.clear)
+        self.refresh_btn.grid   (row=0, column=0)
+        self.cache_btn.grid     (row=0, column=1)
+        self.clear_data_btn.grid(row=0, column=2, sticky=tk.E)
+        self.data_buttons.grid(row=1, column=0, sticky=tk.S+tk.W+tk.E)
+
+        self.panes.add(self.data_frame, sticky=FILL_PARENT)
+
+        # Clients
+        self.client_frame = tk.LabelFrame(self, text='Active Clients')
+        self.client_frame.rowconfigure(0, weight=1)
+        self.client_frame.columnconfigure(0, weight=1)
+        self.panes.add(self.client_frame, sticky=FILL_PARENT)
+
+        # Log Messages
+        self.msg_frame = tk.LabelFrame(self, text='System Messages')
+        self.msg_frame.rowconfigure(0, weight=1)
+        self.msg_frame.columnconfigure(0, weight=1)
+        self.msg_log = ScrolledLogFrame(self.msg_frame, maxLines=1000)
+        self.msg_log.grid(sticky=FILL_PARENT)
+        self.clear_msg_btn = tk.Button(self.msg_frame, text='Clear Log',
+                command=self.msg_log.clear)
+        self.clear_msg_btn.grid(row=1, column=0, sticky=tk.E)
+        self.panes.add(self.msg_frame, sticky=FILL_PARENT)
+
+    def relay_state(self,state):
+        if state:
+            self.rmon_state['text'] = "Connected"
+            self.rmon_state['fg']   = "green"
+        else:
+            self.rmon_state['text'] = "Connection Lost"
+            self.rmon_state['fg']   = "red"
+
+    def refresh_clients(self):
+        rmon_relay.ws.refreshClients()
+
+    def log(self,msg):
+        self.msg_log.appendMsg(msg)
+
+    def report(self,msg):
+        self.data_log.appendMsg(msg)
 
 def shutdown_server():
     if gui_app: gui_app.quit()
@@ -939,9 +1107,10 @@ def restart_server():
     ReExec = True
     shutdown_server()
 
-if __name__ == '__main__':
-    global rmon_relay, gui_app
+def restart_relay():
+    rmon_relay.kill()
 
+if __name__ == '__main__':
     # Compute and report server version
     try:
         ts = os.stat(sys.argv[0]).st_mtime
