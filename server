@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 
+import Tkinter as tk
+import UserDict
 import BaseHTTPServer
 import SimpleHTTPServer
 import socket
@@ -20,20 +22,32 @@ from traceback import format_exc as format
 
 server_version = '0.9'
 
-global config, config_int
 config_int = { 'console_port', 'data_port', 'monitor_port', 'rmon_port' }
-
+config_hide = { 'gui' }
 
 maxMessageLen = 1024
 watchdogTimeout = 5
 wsPingPeriod = 5
 wsMaxPings = 3
-global rmon_relay, ReExec
+gui_app = None
 ReExec = False
+
+class TkConfigVars(UserDict.DictMixin):
+    def __init__(self,data,intkeys={}):
+        self.data = {}
+        for (k,v) in data.items():
+            if k in intkeys: self.data[k] = tk.IntVar()
+            else:            self.data[k] = tk.StringVar()
+            self.data[k].set(v)
+    def __getitem__(self,key):     return self.data[key].get()
+    def __setitem__(self,key,val): self.data[key].set(val)
+    def __contains__(self,item):   return item in self.data
+    def __iter__(self):            return self.data.iterkeys()
 
 def parse_args():
     global config
     parser = argparse.ArgumentParser()
+    parser.add_argument('--gui',            action='store_true')
     parser.add_argument('--data-port',      type=int, metavar='PORT', default=9999,
             help='port for data feed')
     parser.add_argument('--monitor-port',   type=int, metavar='PORT', default=9988,
@@ -630,7 +644,6 @@ class WebSocketServer(object):
 
     def consoleCommand(self, client, fields):
         global ReExec
-        global config
         def reply(data, nl=True):
             if not data: data = ''
             elif nl: data += "\n"
@@ -642,16 +655,21 @@ class WebSocketServer(object):
 
         elif fields[0] == "config":
             if len(fields) == 1:   # print config
-                for opt in sorted(config.keys()):
+                for opt in sorted(filter(
+                    lambda x: x not in config_hide, config.keys())):
                     reply("%-15s %s" % (opt, config[opt]), nl=False)
                 reply(None)
             elif len(fields) == 2: # print one config item
-                if fields[1] in config:
+                if fields[1] in config_hide:
+                    reply("unknown config option %s" % fields[1])
+                elif fields[1] in config:
                     reply(str(config[fields[1]]))
                 else:
                     reply("unknown config option %s" % fields[1])
             else:
-                if fields[1] in config_int:
+                if fields[1] in config_hide:
+                    reply("unknown config option %s" % fields[1])
+                elif fields[1] in config_int:
                     try:
                         config[fields[1]] = int(fields[2])
                     except ValueError:
@@ -895,8 +913,22 @@ class RMonitorRelay(object):
         self.SHUTDOWN = True
         self.kill()
 
+
+class BigClockGUI(tk.Frame):
+    def __init__(self, master=None):
+        global config
+        tk.Frame.__init__(self, master)
+        config = TkConfigVars(config, intkeys=config_int)
+        self.grid()
+        self.createWidgets()
+
+    def createWidgets(self):
+        self.quit_btn = tk.Button(self, text='Quit', command=self.quit)
+        self.quit_btn.grid()
+
 def shutdown_server():
-    rmon_relay.shutdown()
+    if gui_app: gui_app.quit()
+    else: rmon_relay.shutdown()
 
 def restart_server():
     global ReExec
@@ -904,7 +936,7 @@ def restart_server():
     shutdown_server()
 
 if __name__ == '__main__':
-    global rmon_relay
+    global rmon_relay, gui_app
 
     # Compute and report server version
     try:
@@ -915,6 +947,10 @@ if __name__ == '__main__':
 
     parse_args()
 
+    if config['gui']:
+        gui_app = BigClockGUI()
+        gui_app.master.title('BigClock v%s' % server_version)
+
     log(None, "BigClock server v%s" % (server_version))
 
     # Start WebSocket and HTTP servers
@@ -923,23 +959,29 @@ if __name__ == '__main__':
     monitor_acceptor = TCPAcceptServer('monitor_port', ws, 'MONITOR')
     rmon_relay = RMonitorRelay(ws)
 
-    ws.startServer()
-    console_acceptor.startServer()
-    monitor_acceptor.startServer()
-    rmon_relay.start()
-
     httpd = MyHTTPServer(('', 8000), MyHTTPRequestHandler)
     httpd_thr = threading.Thread(target=httpd.serve_forever)
     httpd_thr.name = 'HTTP Listener'
     httpd_thr.daemon = True
-    httpd_thr.start()
 
-    rmon_relay.wait()
+    def start_servers():
+        ws.startServer()
+        console_acceptor.startServer()
+        monitor_acceptor.startServer()
+        rmon_relay.start()
+        httpd_thr.start()
+
+    if config['gui']:
+        gui_app.master.after_idle(start_servers)
+        gui_app.mainloop()
+        rmon_relay.shutdown()
+    else:
+        start_servers()
+        rmon_relay.wait()
 
     httpd.shutdown()
     console_acceptor.close()
     monitor_acceptor.close()
-    #rmon_relay.shutdown()
     ws.close()
     if ReExec:
         if sys.argv[0] == '' or sys.argv[0] == '-c':
