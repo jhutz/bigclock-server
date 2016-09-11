@@ -22,7 +22,8 @@ from traceback import format_exc as format
 
 server_version = '0.9'
 
-config_int = { 'console_port', 'data_port', 'monitor_port', 'rmon_port' }
+config_int = { 'http_port', 'rmon_port',
+        'data_port', 'console_port', 'monitor_port' }
 config_hide = { 'gui' }
 
 maxMessageLen = 1024
@@ -43,11 +44,14 @@ class TkConfigVars(UserDict.DictMixin):
     def __setitem__(self,key,val): self.data[key].set(val)
     def __contains__(self,item):   return item in self.data
     def __iter__(self):            return self.data.iterkeys()
+    def var(self,key):             return self.data[key]
 
 def parse_args():
     global config
     parser = argparse.ArgumentParser()
     parser.add_argument('--gui',            action='store_true')
+    parser.add_argument('--http-port',      type=int, metavar='PORT', default=8000,
+            help='port for web server')
     parser.add_argument('--data-port',      type=int, metavar='PORT', default=9999,
             help='port for data feed')
     parser.add_argument('--monitor-port',   type=int, metavar='PORT', default=9988,
