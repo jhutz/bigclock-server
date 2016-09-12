@@ -1,12 +1,10 @@
-- provide client actions via context menu
-- provide client options edit dialog
-- allow gui to send/update message or error
 - propagate gui timezone changes to clients
-- make view cache button work
-- persistent configuration (registry or dotfile)
 - windows packaging
+- provide client actions via context menu
+- allow gui to send/update message or error
+- make view cache button work
+- provide client options edit dialog
+- persistent configuration (registry or dotfile)
+- make server-provided options survive a reload
 - ability to show schedule data on bigtod
 - timed race last-lap prediction
-- client name lookup in DNS
-- select client for commands using ID, host:port, or name
-- make server-provided options survive a reload

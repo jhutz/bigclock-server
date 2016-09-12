@@ -7,6 +7,7 @@ import UserDict
 import BaseHTTPServer
 import SimpleHTTPServer
 import socket
+import zeroconf
 import struct
 import hashlib
 import threading
@@ -88,6 +89,52 @@ def log(peer, msg):
     if gui_app: gui_app.log(msg)
     else: sys.stdout.write(msg + '\n')
 
+ZC_SERVICES_TYPE = '_services._dns-sd._udp.local.'
+class AddressMapper(object):
+    def __init__(self, ws=None):
+        self.addr_map = { '127.0.0.1' : 'localhost' }
+        self.services = {}
+        self.queue = Queue.Queue()
+        self.ws = ws
+        zc = zeroconf.Zeroconf()
+        self.svc_browser = zeroconf.ServiceBrowser(
+            zc, ZC_SERVICES_TYPE, listener=self)
+        self.dns_thr = threading.Thread(target=self.process_queue)
+        self.dns_thr.name = 'DNS Lookup Queue'
+        self.dns_thr.daemon = True
+        self.dns_thr.start()
+
+    def lookup(self, client):
+        client['name'] = self.addr_map.get(client['address'], None)
+        if client['name'] == None:
+            self.queue.put(client)
+    def remove_service(self, zc, type_, name): pass
+    def add_service(self, zc, type_, name):
+        if type_ == ZC_SERVICES_TYPE:
+            log(None, "ZC add service: %s" % name)
+            if name in self.services: return
+            try:
+                self.services[type_] = zeroconf.ServiceBrowser(
+                    zc, name, listener=self)
+            except zeroconf.BadTypeInNameException: pass
+        else:
+            info = zc.get_service_info(type_, name)
+            if len(info.address) == 4:
+                addr_str = socket.inet_ntoa(info.address)
+                shortname = info.get_name()
+                log(None, "ZC add mapping: %s -> %s" % (addr_str, shortname))
+                self.addr_map[addr_str] = shortname
+                self.ws.addr_map(addr_str, shortname)
+
+    def process_queue(self):
+        while True:
+            client = self.queue.get(True)
+            if client['name'] != None: continue
+            try:
+                info = socket.gethostbyaddr(client['address'])
+                shortname = info[0].split('.')[0]
+                client['name'] = shortname
+            except: pass
 
 class MyHTTPRequestHandler(SimpleHTTPServer.SimpleHTTPRequestHandler):
     protocol_version = "HTTP/1.0"
@@ -175,7 +222,7 @@ class TCPAcceptServer(object):
                 log(peer, str(type(e)))
                 print(format())
                 print(e)
-            self.ws.addClient(conn, peer, self.ctype)
+            self.ws.addClient(conn, addr, self.ctype)
         log(None, 'Shutting down %s server port: %s' % (self.ctype, port))
         return
 
@@ -257,11 +304,19 @@ class WebSocketServer(object):
         for item in sorted(self.new_client_data.items()):
             self.sendJSON(item[1], clients=[client])
 
-    def addClient(self, conn, peer, clientType):
+    def addr_map(self, addr, name):
+        for c in filter(lambda x: x['address'] == addr, self.clients.values()):
+            c['name'] = name
+            if gui_app: gui_app.update_client_name(c)
+
+    def addClient(self, conn, addr, clientType):
+        peer = '%s:%d' % addr
         try:
             clientCode = conn.__hash__()
             client = {
                     'id': clientCode,
+                    'address': addr[0],
+                    'port': addr[1],
                     'peer': peer,
                     'name': None,
                     'conn': conn,
@@ -275,6 +330,7 @@ class WebSocketServer(object):
                     'version_js'   : '???',
                     'options'      : '-',
                     }
+            addrmapper.lookup(client)
             with self.lock:
                 self._initClient(client)
                 self.clients[clientCode] = client
@@ -354,7 +410,7 @@ class WebSocketServer(object):
                 log(peer, str(type(e)))
                 print(format())
                 print(e)
-            self.addClient(conn, peer, clientType)
+            self.addClient(conn, addr, clientType)
         log(None, 'Shutting down WS server port: %s' % port)
         return
 
@@ -657,10 +713,15 @@ class WebSocketServer(object):
             log(client['peer'], 'unsupported message type %s' % fields[0])
 
     def _findClient(self, spec):
+        n_match = 0
+        match = None
         for c in self.clients.values():
             if spec == "%x" % c['id']: return c
             if spec == c['peer']:      return c
-        return None
+            if spec == c['address']:   match = c; n_match += 1
+            if spec == c['name']:      match = c; n_match += 1
+        if n_match > 1: match = None
+        return match
 
     def refreshClients(self, clients=None):
         self.sendJSON([':V', server_version], clients=clients)
@@ -771,14 +832,14 @@ class WebSocketServer(object):
             if gui_app: gui_app.update_client_sql(client)
 
         elif fields[0] == "clients":
-            msg =  "      Client ID  Type     LastSeen  IP Address : Port\n"
-            msg += "   ============  =======  ========  =====================\n"
+            msg =  "      Client ID  Type     LastSeen  IP Address : Port      Name\n"
+            msg += "   ============  =======  ========  =====================  ===============\n"
             for c in self.clients.values():
                 fl = '>' if c is client else '-' if not c['alive'] else ' '
                 fl += 'S' if c['squelch'] else ' '
                 ts = time.strftime('%H:%M:%S', time.localtime(c['last_pong']))
-                msg += "%s %12x  %-7s  %-8s  %s\n" % (
-                        fl, c['id'], c['type'], ts, c['peer'])
+                msg += "%s %12x  %-7s  %-8s  %-21s  %s\n" % (
+                        fl, c['id'], c['type'], ts, c['peer'], c['name'])
                 if len(fields) > 1 and fields[1] == '-v' and c['type'] == 'WS':
                     msg += "   %s\n   HTML %s / CSS %s / JS %s\n   %s\n\n" % (
                             c['user_agent'], c['version_html'],
@@ -994,6 +1055,7 @@ class BigClockClient(object):
         self.pong_v = tk.StringVar()
         self.name_v = tk.StringVar()
         self.set_pong(client['last_pong'])
+        if client['name']: self.set_name(client['name'])
 
         self.sql_btn = tk.Checkbutton(master, onvalue=True, offvalue=False,
                 anchor=tk.CENTER, borderwidth=0, bg='white', highlightbackground='white',
@@ -1260,6 +1322,7 @@ class BigClockGUI(tk.Frame):
     def add_client(self,client):         self.client_list.queue.put(('add', client))
     def remove_client(self,client):      self.client_list.queue.put(('del', client))
     def update_client_pong(self,client): self.client_list.queue.put(('ack', client))
+    def update_client_name(self,client): self.client_list.queue.put(('nam', client))
     def update_client_sql(self,client):  self.client_list.queue.put(('sql', client))
 
     def log(self,msg):
@@ -1308,6 +1371,8 @@ if __name__ == '__main__':
     httpd_thr.daemon = True
 
     def start_servers():
+        global addrmapper
+        addrmapper = AddressMapper(ws)
         ws.startServer()
         console_acceptor.startServer()
         monitor_acceptor.startServer()
