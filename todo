@@ -4,7 +4,6 @@
 - propagate gui timezone changes to clients
 - make view cache button work
 - persistent configuration (registry or dotfile)
-- windows portability
 - windows packaging
 - ability to show schedule data on bigtod
 - timed race last-lap prediction
