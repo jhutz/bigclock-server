@@ -76,7 +76,7 @@ def parse_args():
             help='timezone for clock display')
     parser.add_argument('--version', action='version', version=server_version)
     parser.add_argument('rmon_server', metavar='rmon-server', nargs='?',
-            help='rmonitor server name/address', default='10.42.0.100')
+            help='rmonitor server name/address', default='192.168.1.50')
     parser.add_argument('rmon_port',   metavar='rmon-port', nargs='?', type=int,
             help='rmonitor server port', default=50000)
     config = vars(parser.parse_args())
