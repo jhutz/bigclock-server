@@ -778,6 +778,21 @@ class WebSocketServer(object):
             reply("changing client %x options" % c['id'])
             self.sendJSON([':OPT', fields[2]], clients=[c])
 
+        elif fields[0] == "name":
+            if len(fields) < 2:
+                reply("name requires a client and new name")
+                return
+            if len(fields) < 3:
+                reply("name requires a new client name")
+                return
+            c = self._findClient(fields[1])
+            if not c:
+                reply("unknown client %s" % spec)
+                return
+            reply("naming %x as %s" % (c['id'],fields[2]))
+            c['name'] = fields[2]
+            if gui_app: gui_app.update_client_name(c)
+
         elif fields[0] == "kick":
             if len(fields) < 2:
                 reply("kick requires a client")
@@ -864,6 +879,7 @@ class WebSocketServer(object):
 The following commands are available
   config [key [value]]   show or change server config settings
   options client opts    change client config options
+  name client nmae       change client name
   kick client...         disconnect a client
   refresh [client...]    resend cached data to one or all clients
   reload [client...]     tell one or all clients to reload page
