@@ -1360,9 +1360,16 @@ def restart_relay():
     rmon_relay.kill()
 
 if __name__ == '__main__':
+    # Find the main program and change to its directory
+    if hasattr(sys, "frozen"):
+        mainprog = sys.executable
+    else:
+        mainprog = sys.argv[0]
+    os.chdir(os.path.dirname(mainprog))
+
     # Compute and report server version
     try:
-        ts = os.stat(sys.argv[0]).st_mtime
+        ts = os.stat(mainprog).st_mtime
         server_version += time.strftime('-%y%m%d-%H%M%S', time.localtime(ts))
     except Exception:
         pass
