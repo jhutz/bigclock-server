@@ -80,6 +80,8 @@ def parse_args():
     parser.add_argument('rmon_port',   metavar='rmon-port', nargs='?', type=int,
             help='rmonitor server port', default=50000)
     config = vars(parser.parse_args())
+    if hasattr(sys, "frozen") and sys.frozen == "windows_exe":
+        config['gui'] = True
 
 def log(peer, msg):
     preamble = time.strftime('%b %d %H:%M:%S')
