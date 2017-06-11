@@ -1325,7 +1325,7 @@ class BigClockGUI(tk.Frame):
         self.menubar = tk.Menu(self)
         self.master.config(menu=self.menubar)
 
-        menu = tk.Menu(self.menubar)
+        menu = tk.Menu(self.menubar, tearoff=0)
         self.menubar.add_cascade(label="File", menu=menu)
         menu.add_command(label="Restart", command=restart_server)
         menu.add_command(label="Quit", command=self.quit)
