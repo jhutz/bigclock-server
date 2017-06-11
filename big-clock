@@ -1224,6 +1224,25 @@ class BigClockGUI(tk.Frame):
         self.grid(sticky=FILL_PARENT)
         self.createWidgets()
 
+    def show_hide_panes(self):
+        panes = set([self.panewin.nametowidget(tcl_obj.string)
+            for tcl_obj in self.panewin.panes()])
+        for i in range(len(self.panes)):
+            vis  = self.pane_vis[i].get()
+            pane = self.panes[i]
+            if not vis and pane in panes:
+                self.panewin.remove(pane)
+                panes.remove(pane)
+            if vis and pane not in panes:
+                for j in range(i+1, len(self.panes)):
+                    if self.panes[j] in panes:
+                        self.panewin.add(pane, before=self.panes[j])
+                        panes.add(pane)
+                        break
+                if pane not in panes:
+                    self.panewin.add(pane)
+                    panes.add(pane)
+
     def createWidgets(self):
         self.config_frame = cf = tk.Frame(self)
         self.config_frame.rowconfigure(0, minsize=27)
@@ -1278,8 +1297,8 @@ class BigClockGUI(tk.Frame):
 
         self.columnconfigure(0, weight=1)
         self.rowconfigure(1, weight=1)
-        self.panes = tk.PanedWindow(self, orient=tk.VERTICAL, showhandle=True)
-        self.panes.grid(sticky=FILL_PARENT)
+        self.panewin = tk.PanedWindow(self, orient=tk.VERTICAL, showhandle=True)
+        self.panewin.grid(sticky=FILL_PARENT)
 
         # Recent Data
         self.data_frame = tk.LabelFrame(self, text='Recent Data')
@@ -1300,7 +1319,7 @@ class BigClockGUI(tk.Frame):
         self.clear_data_btn.grid(row=0, column=2, sticky=tk.E)
         self.data_buttons.grid(row=1, column=0, sticky=tk.S+tk.W+tk.E)
 
-        self.panes.add(self.data_frame, sticky=FILL_PARENT)
+        self.panewin.add(self.data_frame, sticky=FILL_PARENT)
 
         # Clients
         self.client_frame = tk.LabelFrame(self, text='Active Clients')
@@ -1308,7 +1327,7 @@ class BigClockGUI(tk.Frame):
         self.client_frame.columnconfigure(0, weight=1)
         self.client_list = BigClockClientList(self.client_frame)
         self.client_list.grid(sticky=FILL_PARENT)
-        self.panes.add(self.client_frame, sticky=FILL_PARENT)
+        self.panewin.add(self.client_frame, sticky=FILL_PARENT)
 
         # Log Messages
         self.msg_frame = tk.LabelFrame(self, text='System Messages')
@@ -1319,7 +1338,7 @@ class BigClockGUI(tk.Frame):
         self.clear_msg_btn = tk.Button(self.msg_frame, text='Clear Log',
                 command=self.msg_log.clear)
         self.clear_msg_btn.grid(row=1, column=0, sticky=tk.E)
-        self.panes.add(self.msg_frame, sticky=FILL_PARENT)
+        self.panewin.add(self.msg_frame, sticky=FILL_PARENT)
 
         # Menu Bar
         self.menubar = tk.Menu(self)
@@ -1329,6 +1348,18 @@ class BigClockGUI(tk.Frame):
         self.menubar.add_cascade(label="File", menu=menu)
         menu.add_command(label="Restart", command=restart_server)
         menu.add_command(label="Quit", command=self.quit)
+
+        menu = tk.Menu(self.menubar, tearoff=0)
+        self.menubar.add_cascade(label="View", menu=menu)
+        self.panes = [self.panewin.nametowidget(tcl_obj.string)
+                for tcl_obj in self.panewin.panes()]
+        self.pane_vis = []
+        for i in range(len(self.panes)):
+            self.pane_vis.append(tk.BooleanVar())
+            self.pane_vis[i].set(True)
+            menu.add_checkbutton(label=self.panes[i]['text'],
+                    variable=self.pane_vis[i], onvalue=True, offvalue=False,
+                    command=self.show_hide_panes)
 
     def refresh_clients(self):
         ws.refreshClients()
