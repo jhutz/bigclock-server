@@ -1390,7 +1390,7 @@ if __name__ == '__main__':
     monitor_acceptor = TCPAcceptServer('monitor_port', ws, 'MONITOR')
     rmon_relay = RMonitorRelay(ws)
 
-    httpd = MyHTTPServer(('', 8000), MyHTTPRequestHandler)
+    httpd = MyHTTPServer(('', config['http_port']), MyHTTPRequestHandler)
     httpd_thr = threading.Thread(target=httpd.serve_forever)
     httpd_thr.name = 'HTTP Listener'
     httpd_thr.daemon = True
