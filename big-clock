@@ -1230,7 +1230,7 @@ class BigClockGUI(tk.Frame):
 
         # Configuration Labels
         self.rmon_label = tk.Label(cf, anchor=tk.W, text="RMonitor Feed:")
-        self.rmon_state = tk.Label(cf, anchor=tk.W)
+        self.rmon_state = tk.Label(cf, anchor=tk.W, text="Connecting...", fg="red")
         self.data_label = tk.Label(cf, anchor=tk.W, text="Data Feed Port:")
         self.mon_label  = tk.Label(cf, anchor=tk.W, text="Monitor Port:")
         self.cons_label = tk.Label(cf, anchor=tk.W, text="Console Port:")
