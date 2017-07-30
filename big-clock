@@ -63,7 +63,10 @@ class TkConfigVars(UserDict.DictMixin):
 def parse_args():
     global config
     parser = argparse.ArgumentParser()
-    parser.add_argument('--gui',            action='store_true')
+    parser.add_argument('--gui',    action='store_const', const=True,
+            help='Enable GUI console (default)')
+    parser.add_argument('--no-gui', action='store_const', const=False, dest='gui',
+            help='Disable GUI console')
     parser.add_argument('--http-port',      type=int, metavar='PORT', default=8000,
             help='port for web server')
     parser.add_argument('--data-port',      type=int, metavar='PORT', default=9999,
@@ -80,8 +83,7 @@ def parse_args():
     parser.add_argument('rmon_port',   metavar='rmon-port', nargs='?', type=int,
             help='rmonitor server port', default=50000)
     config = vars(parser.parse_args())
-    if hasattr(sys, "frozen") and sys.frozen == "windows_exe":
-        config['gui'] = True
+    if config['gui'] == None: config['gui'] = True
 
 def log(peer, msg):
     preamble = time.strftime('%b %d %H:%M:%S')
