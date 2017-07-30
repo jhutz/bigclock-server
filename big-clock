@@ -21,9 +21,13 @@ import sys
 import signal
 import csv
 import argparse
+if sys.platform == "win32": import _winreg
+else: import ConfigParser
 from traceback import format_exc as format
 
 server_version = '1.1'
+registry_key = 'Software\central.org\BigClock'
+config_file = os.path.expanduser('~/.big-clock')
 
 config_int = { 'http_port', 'rmon_port',
         'data_port', 'console_port', 'monitor_port' }
@@ -60,6 +64,50 @@ class TkConfigVars(UserDict.DictMixin):
     def __iter__(self):            return self.data.iterkeys()
     def var(self,key):             return self.data[key]
 
+def load_config():
+    config = dict()
+    if sys.platform == "win32":
+        try:
+            with _winreg.OpenKey(_winreg.HKEY_CURRENT_USER, registry_key) as key:
+                ix = 0
+                while True:
+                    try:(k,v,t) = _winreg.EnumValue(key, ix)
+                    except WindowsError: break
+                    config[k] = v
+                    ix = ix + 1
+        except WindowsError, e:
+            if e.winerror != ERROR_FILE_NOT_FOUND: raise
+    else:
+        if os.path.isfile(config_file):
+            cfgp = ConfigParser.RawConfigParser()
+            cfgp.read(config_file)
+            for (k,v) in cfgp.items('big-clock'):
+                if k in config_int:
+                    try: v = int(v)
+                    except: continue
+                config[k] = v
+
+def save_config():
+    global config
+    if sys.platform == "win32":
+        with _winreg.CreateKey(_winreg.HKEY_CURRENT_USER, registry_key) as key:
+            ix = 0
+            while True:
+                try:(k,v,t) = _winreg.EnumValue(key, ix)
+                except WindowsError: break
+                if k not in config: _winreg.DeleteValue(key, k)
+                ix = ix + 1
+            for k in config:
+                if k in config_int: t = _winreg.REG_DWORD
+                else: t = _winreg.REG_SZ
+                _winreg.SetValueEx(key, k, t, config[k])
+    else:
+        cfgp = ConfigParser.RawConfigParser()
+        cfgp.add_section('big-clock')
+        for k in config:
+            cfgp.set('big-clock', k, config[k])
+        cfgp.write(config_file)
+
 def parse_args():
     global config
     parser = argparse.ArgumentParser()
@@ -82,7 +130,9 @@ def parse_args():
             help='rmonitor server name/address', default='127.0.0.1')
     parser.add_argument('rmon_port',   metavar='rmon-port', nargs='?', type=int,
             help='rmonitor server port', default=50000)
-    config = vars(parser.parse_args())
+    cfgvars = vars(parser.parse_args())
+    for k in cfgvars:
+        if cfgvars[k] != None: config[k] = cfgvars[k]
     if config['gui'] == None: config['gui'] = True
 
 def log(peer, msg):
@@ -1413,6 +1463,7 @@ if __name__ == '__main__':
     except Exception:
         pass
 
+    load_config()
     parse_args()
 
     if config['gui']:
