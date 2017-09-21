@@ -23,8 +23,11 @@ div.version {
   font-size: 12pt; font-weight: normal;
   color: #ff00ff;
 }
+div#logo { top: 0; left: 0; position: absolute; }
+div#logo img { width: 175px; height: 125px; }
 div#version { top: 0; left:  0; }
 div#options { top: 0; right: 0; }
+div.chrome43 div#logo    { top: 15px; left:  85px; }
 div.chrome43 div#version { top: 15px; left:  85px; }
 div.chrome43 div#options { top: 15px; right: 85px; }
 
