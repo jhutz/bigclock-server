@@ -48,6 +48,7 @@ th.tod       { text-align: right; }
 table.bigtod th { font-size:  60pt; font-weight: bold; text-align: center; }
 table.bigtod td { font-size: 220pt; font-weight: bold; text-align: center; }
 div.chrome43 table.bigtod td { font-size: 200pt; }
+table.bigtod { position: relative; top: 100px; }
 
 /* global status display */
 div.status   { font-size: 24pt; font-weight: normal; text-align: center; }
