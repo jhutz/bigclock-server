@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2016-2017 Jeffrey Hutzelman.
+ * All Rights Reserved.
+ * See LICENSE for licensing terms.
+ */
 var f_topdiv   = document.getElementById("topdiv");
 var f_run      = document.getElementById("run");
 var f_tod      = document.getElementById("tod");
