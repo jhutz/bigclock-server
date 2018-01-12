@@ -931,9 +931,28 @@ The following commands are available
         else:
             reply('Unrecognized command %s' % fields[0])
 
+class RMonitorPushServer(TCPAcceptServer):
+    def __init__(self, relay):
+        TCPAcceptServer.__init__(self, 'rmon_port', 'RMON-PUSH')
+        self.relay = relay
+
+    def handleClient(self, conn, addr):
+        # Kill existing relay thread, if one exists
+        if self.relay.RELAY_ACTIVE:
+            self.relay.kill()
+            self.relay._wait()
+
+        # Start a new relay thread
+        server_thread = threading.Thread(
+                target=self.relay._run_once, args=(conn,))
+        server_thread.name = 'RMonitor Relay'
+        server_thread.daemon = True
+        server_thread.start()
+
 class RMonitorRelay(object):
     def __init__(self,ws):
         self.ws = ws
+        self.server = None
         self.socket = None
         self.rmon_file = None
         self.RELAY_ACTIVE = False
@@ -1036,23 +1055,50 @@ class RMonitorRelay(object):
             log(None, 'RMonitor relay shut down')
             self.shutdown_complete.set()
 
+    def _run_once(self, s):
+        self.ws.watchdog_disable()
+        self.RELAY_ACTIVE = True
+        self.socket = s
+
+        try:
+            self._relay()
+        except socket.error as e:
+            # ignore socket errors if we're shutting down
+            if self.RELAY_ACTIVE:
+                log(None, str(e))
+                ws.sendError('Lost rmonitor feed')
+        finally:
+            self.RELAY_ACTIVE = False
+            self.shutdown_complete.set()
+
     def start(self):
-        server_thread = threading.Thread(target=self._run_loop)
-        server_thread.name = 'RMonitor Relay'
-        server_thread.daemon = True
-        server_thread.start()
+        if config['rmon_server'] == '-':
+            self.server = RMonitorPushServer(self)
+            self.server.startServer()
+        else:
+            server_thread = threading.Thread(target=self._run_loop)
+            server_thread.name = 'RMonitor Relay'
+            server_thread.daemon = True
+            server_thread.start()
 
     def kill(self):
         self.RELAY_ACTIVE = False
         self._close()
 
-    def wait(self):
+    def _wait(self):
         try:
             while not self.shutdown_complete.wait(0.5): pass
         except KeyboardInterrupt:
             pass
 
+    def wait(self):
+        if self.server:
+            self.server.wait()
+        else:
+            self._wait()
+
     def shutdown(self):
+        if self.server: self.server.close()
         self.SHUTDOWN = True
         self.kill()
 
@@ -1287,7 +1333,6 @@ class BigClockGUI(tk.Frame):
         self.config_frame.columnconfigure(6, weight=1)
 
         # Configuration Labels
-        self.rmon_label = tk.Label(cf, anchor=tk.W, text="RMonitor Feed:")
         self.rmon_state = tk.Label(cf, anchor=tk.W, text="Connecting...", fg="red")
         self.data_label = tk.Label(cf, anchor=tk.W, text="Data Feed Port:")
         self.mon_label  = tk.Label(cf, anchor=tk.W, text="Monitor Port:")
@@ -1303,19 +1348,26 @@ class BigClockGUI(tk.Frame):
         self.mon_entry  = tk.Entry(cf, width=6, textvariable=config.var('monitor_port'))
         self.tz_entry   = tk.Entry(cf, textvariable=config.var('timezone'))
 
-        # Special composite box for rmonitor host:
-        self.rmon_entry = tk.Frame(cf)
-        self.rmon_sep = tk.Label(self.rmon_entry, text=":")
-        self.rmon_host = tk.Entry(self.rmon_entry, width=16, textvariable=config.var('rmon_server'))
-        self.rmon_host.grid(row=0, column=0, sticky=tk.W+tk.E)
-        self.rmon_sep.grid (row=0, column=1, sticky=tk.E)
-
         # Reconnect button
         self.reconn_btn = tk.Button(cf, text='Reconnect', command=restart_relay)
 
+        # Special handling for rmonitor:
+        if config['rmon_server'] == '-':
+            self.rmon_label = tk.Label(cf, anchor=tk.W, text="RMonitor Push Feed Port:")
+            self.rmon_label.grid(row=0, column=0, sticky=tk.W, columnspan=3)
+        else:
+            self.rmon_label = tk.Label(cf, anchor=tk.W, text="RMonitor Feed:")
+            self.rmon_label.grid(row=0, column=0, sticky=tk.W)
+
+            self.rmon_entry = tk.Frame(cf)
+            self.rmon_sep = tk.Label(self.rmon_entry, text=":")
+            self.rmon_host = tk.Entry(self.rmon_entry, width=16,
+                    textvariable=config.var('rmon_server'))
+            self.rmon_host.grid(row=0, column=0, sticky=tk.W+tk.E)
+            self.rmon_sep.grid (row=0, column=1, sticky=tk.E)
+            self.rmon_entry.grid(row=0, column=1, sticky=tk.W+tk.E, columnspan=2)
+
         # Configuration Layout
-        self.rmon_label.grid(row=0, column=0, sticky=tk.W)
-        self.rmon_entry.grid(row=0, column=1, sticky=tk.W+tk.E, columnspan=2)
         self.rmon_port.grid (row=0, column=3, sticky=tk.W)
         self.rmon_state.grid(row=0, column=4, sticky=tk.W, columnspan=2)
         self.data_label.grid(row=1, column=0, sticky=tk.W)
