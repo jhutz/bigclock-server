@@ -959,15 +959,21 @@ class RMonitorRelay(object):
                 finally:
                     self.socket = None
 
-    def _relay(self):
-        error_cleared = False
+    def _connect(self):
         self.ws.watchdog_disable()
         self.RELAY_ACTIVE = True
         server = (config['rmon_server'], config['rmon_port'])
         log(None, 'Connecting to RMonitor feed at %s:%d' % server)
-
         try:
             self.socket = socket.create_connection(server, 5)
+        except:
+            self._close()
+            raise
+
+    def _relay(self):
+        error_cleared = False
+        try:
+            cloexec(self.socket)
             self.socket.setblocking(True)
             self.rmon_file = self.socket.makefile("rb")
             rmon_csv = csv.reader(self.rmon_file)
@@ -1013,10 +1019,11 @@ class RMonitorRelay(object):
             ws.sendError('Lost rmonitor feed')
             if gui_app: gui_app.relay_state(False)
 
-    def run(self):
+    def _run_loop(self):
         try:
             while not self.SHUTDOWN:
                 try:
+                    self._connect()
                     self._relay()
                 except socket.error as e:
                     # ignore socket errors if we're shutting down
@@ -1030,7 +1037,7 @@ class RMonitorRelay(object):
             self.shutdown_complete.set()
 
     def start(self):
-        server_thread = threading.Thread(target=self.run)
+        server_thread = threading.Thread(target=self._run_loop)
         server_thread.name = 'RMonitor Relay'
         server_thread.daemon = True
         server_thread.start()
