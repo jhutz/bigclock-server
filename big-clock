@@ -15,6 +15,7 @@ import struct
 import hashlib
 import threading
 import Queue
+import codecs
 import base64
 import array
 import time
@@ -1010,6 +1011,7 @@ class RMonitorRelay(object):
                 except StopIteration: break
                 if not fields:
                     break
+                fields = [ codecs.decode(x, 'cp1252') for x in fields ]
                 jd = json.dumps(fields)
                 if gui_app: gui_app.report(jd)
                 else: sys.stdout.write(jd + '\n')
