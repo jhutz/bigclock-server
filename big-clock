@@ -178,11 +178,11 @@ class MyHTTPServer(BaseHTTPServer.HTTPServer):
 
 
 class TCPAcceptServer(object):
-    def __init__(self, cfg_key, ws, clientType):
+    def __init__(self, cfg_key, clientType):
         self.cfg_key = cfg_key
-        self.ws = ws
         self.ctype = clientType
         self.SERVER_ACTIVE = True
+        self.shutdown_complete = threading.Event()
 
     def _setupSocket(self, port):
         s = socket.socket()
@@ -195,30 +195,34 @@ class TCPAcceptServer(object):
 
     def _bindClient(self):
         port = config[self.cfg_key]
-        s = self._setupSocket(port)
+        self.socket = self._setupSocket(port)
         log(None, '%s listening on port %d' % (self.ctype, port))
         while self.SERVER_ACTIVE:
             if port != config[self.cfg_key]:
                 newport = config[self.cfg_key]
                 try:
                     newsock = self._setupSocket(newport)
-                    try: s.close()
+                    try: self.socket.close()
                     except: pass
-                    s = newsock
+                    self.socket = newsock
                     port = newport
                     log(None, '%s listening on port %d' % (self.ctype, port))
                 except IOError, e:
                     log(None, '%s _setupSocket: %s' % (self.ctype, e.args[0]))
             try:
-                conn, addr = s.accept()
+                conn, addr = self.socket.accept()
             except Exception, e:
                 err = e.args[0]
                 if err == 'timed out':
                     continue
-                print(format())
-                print(e)
-                self.SERVER_ACTIVE = False
-                return
+                if self.SERVER_ACTIVE:
+                    # ignore socket errors if we're shutting down
+                    print(format())
+                    print(e)
+                    self.SERVER_ACTIVE = False
+                    return
+                else:
+                    break
             peer = '%s:%d' % addr
             log(peer, '%s client connected' % self.ctype)
             try:
@@ -229,9 +233,13 @@ class TCPAcceptServer(object):
                 log(peer, str(type(e)))
                 print(format())
                 print(e)
-            self.ws.addClient(conn, addr, self.ctype)
+            self.handleClient(conn, addr)
         log(None, 'Shutting down %s server port: %s' % (self.ctype, port))
+        self.shutdown_complete.set()
         return
+
+    def handleClient(self, conn, addr):
+        pass
 
     def startServer(self):
         server_thr = threading.Thread(target=self._bindClient)
@@ -241,7 +249,23 @@ class TCPAcceptServer(object):
 
     def close(self):
         self.SERVER_ACTIVE = False
+        if self.socket:
+            self.socket.close()
 
+    def wait(self):
+        try:
+            while not self.shutdown_complete.wait(0.5): pass
+        except KeyboardInterrupt:
+            pass
+
+
+class TCPUserServer(TCPAcceptServer):
+    def __init__(self, cfg_key, clientType, ws):
+        TCPAcceptServer.__init__(self, cfg_key, clientType)
+        self.ws = ws
+
+    def handleClient(self, conn, addr):
+        self.ws.addClient(conn, addr, self.ctype)
 
 # WebSocket server code adapted from
 # https://gist.github.com/sadatanwar/222d4643c25f72293461
@@ -1426,8 +1450,8 @@ if __name__ == '__main__':
 
     # Start WebSocket and HTTP servers
     ws = WebSocketServer()
-    console_acceptor = TCPAcceptServer('console_port', ws, 'CONSOLE')
-    monitor_acceptor = TCPAcceptServer('monitor_port', ws, 'MONITOR')
+    console_acceptor = TCPUserServer('console_port', 'CONSOLE', ws)
+    monitor_acceptor = TCPUserServer('monitor_port', 'MONITOR', ws)
     rmon_relay = RMonitorRelay(ws)
 
     httpd = MyHTTPServer(('', config['http_port']), MyHTTPRequestHandler)
