@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016-2017 Jeffrey Hutzelman.
+ * Copyright (c) 2016-2018 Jeffrey Hutzelman.
  * All Rights Reserved.
  * See LICENSE for licensing terms.
  */
@@ -45,6 +45,29 @@ col.leaders  { width: 50%; }
 col.tod      { width: 50%; }
 th.leaders   { text-align: left; }
 th.tod       { text-align: right; }
+
+div#flag     {
+  position: absolute; top: 0; right: 0;
+  font-size: 24pt; font-weight: normal;
+  text-align: right;
+}
+div.chrome43 div#flag { top: 15px; right: 85px; }
+div.GreenFlag     { background: #00ff00; }
+div.YellowFlag    { background: #ffff00; }
+div.RedFlag       { background: #ff0000; color: #ffffff; }
+div.CheckeredFlag { background: #000000; color: #ffffff;
+  text-decoration: blink;
+  -webkit-animation-name: blinker;
+  -webkit-animation-duration: 0.6s;
+  -webkit-animation-iteration-count: infinite;
+  -webkit-animation-timing-function: ease-in-out;
+  -webkit-animation-direction: alternate;
+}
+
+@-webkit-keyframes blinker {
+  from {opacity: 1.0;}
+  to {opacity: 0.0;}
+}
 
 /* bigtod time-of-day clock */
 table.bigtod th { font-size:  60pt; font-weight: bold; text-align: center; }

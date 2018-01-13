@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016-2017 Jeffrey Hutzelman.
+ * Copyright (c) 2016-2018 Jeffrey Hutzelman.
  * All Rights Reserved.
  * See LICENSE for licensing terms.
  */
@@ -9,6 +9,7 @@ var f_tod      = document.getElementById("tod");
 var f_tod2     = document.getElementById("tod2");
 var f_date     = document.getElementById("date");
 var f_flag     = document.getElementById("flag");
+var f_flagtext = document.getElementById("flagtext");
 var f_laps     = document.getElementById("laps");
 var f_laps2go  = document.getElementById("laps2go");
 var f_elapsed  = document.getElementById("elapsed");
@@ -111,6 +112,18 @@ function showMessage(msg) {
   f_message.textContent = msg
 }
 
+function setFlag(flag) {
+  flag = flag.trim();
+  if (flag == "Finish") flag = "Checkered";
+  if (flag == "") {
+    f_flagtext.textContent = '';
+    f_flag.className = "NoFlag";
+  } else {
+    f_flag.className = flag + "Flag";
+    f_flagtext.textContent = flag + " Flag";
+  }
+}
+
 function showError(msg) {
   if (msg == '') {
     f_error.style.display = "none";
@@ -194,7 +207,7 @@ function doconnect() {
               f_tod2     .textContent = fields[3];
               f_elapsed  .textContent = fields[4];
               tod_is_local = false;
-              //f_flag     .textContent = fields[5];
+              setFlag(fields[5]);
             } else if (fields[0] == '$G') {
               /* race info: $G,pos,regcode,laps,time */
               if (fields[1] == 1) f_laps.textContent = fields[3];
@@ -217,7 +230,7 @@ function doconnect() {
                 weekday: 'long', year: 'numeric',
                 month: 'long', day: 'numeric' });
               f_run      .textContent = '';
-              //f_flag     .textContent = '';
+              setFlag('');
               f_laps     .textContent = '';
               f_laps2go  .textContent = '';
               f_elapsed  .textContent = '--:--:--';
