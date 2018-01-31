@@ -1,0 +1,14 @@
+[Unit]
+Description=Big Race Clock
+Requires=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/lib/big-clock/big-clock --no-gui --http-port=80
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
+
+# vim: ft=systemd
