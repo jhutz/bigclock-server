@@ -1014,7 +1014,7 @@ class RMonitorRelay(object):
                 fields = [ codecs.decode(x, 'cp1252') for x in fields ]
                 jd = json.dumps(fields)
                 if gui_app: gui_app.report(jd)
-                else: sys.stdout.write(jd + '\n')
+                #else: sys.stdout.write(jd + '\n')
                 # Update the cache before sending the data.  This insures that
                 # any new client will see this data, because new clients are
                 # sent the entire cache before being added to the send list,
