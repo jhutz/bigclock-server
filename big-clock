@@ -990,7 +990,7 @@ class RMonitorRelay(object):
             self._close()
             raise
 
-    def _relay(self):
+    def _relay(self, watchdog=True):
         error_cleared = False
         try:
             cloexec(self.socket)
@@ -1003,7 +1003,7 @@ class RMonitorRelay(object):
 
         try:
             log(None, 'RMonitor feed connected')
-            self.ws.watchdog_update()
+            if watchdog: self.ws.watchdog_update()
             if gui_app: gui_app.relay_state(True)
 
             while self.RELAY_ACTIVE:
@@ -1028,7 +1028,7 @@ class RMonitorRelay(object):
                     self.ws.new_client_data[ '%s%3d' % (fields[0], int(fields[1])) ] = fields
                 elif fields[0] in {'$B'}:
                     self.ws.new_client_data[fields[0]] = fields
-                self.ws.watchdog_update()
+                if watchdog: self.ws.watchdog_update()
                 self.ws.sendJSON(fields)
                 if not error_cleared:
                     self.ws.sendError('')
@@ -1063,7 +1063,7 @@ class RMonitorRelay(object):
         self.socket = s
 
         try:
-            self._relay()
+            self._relay(watchdog=False)
         except socket.error as e:
             # ignore socket errors if we're shutting down
             if self.RELAY_ACTIVE:
