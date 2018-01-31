@@ -146,6 +146,18 @@ class AddressMapper(object):
 
 class MyHTTPRequestHandler(SimpleHTTPServer.SimpleHTTPRequestHandler):
     protocol_version = "HTTP/1.0"
+
+    def send_head(self):
+        #log("%s:%d" % self.client_address, "send_head %s" % self.path)
+        if self.path == "/":
+            self.send_response(301)
+            self.send_header("Location", "/big-clock.html")
+            # avoid sending our cache control headers for this redirect
+            SimpleHTTPServer.SimpleHTTPRequestHandler.end_headers(self)
+            return None
+        return SimpleHTTPServer.SimpleHTTPRequestHandler.send_head(self)
+
+
     def end_headers(self):
         self.send_my_headers()
         SimpleHTTPServer.SimpleHTTPRequestHandler.end_headers(self)
