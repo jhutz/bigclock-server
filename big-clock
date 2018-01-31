@@ -540,7 +540,7 @@ class WebSocketServer(object):
             elif opcode == 0xa or (not isctrl and data == "pong"): # pong
                 client['last_pong'] = time.time()
                 if gui_app: gui_app.update_client_pong(client)
-                log(client['peer'], 'pong')
+                #log(client['peer'], 'pong')
             elif isctrl:
                 log(client['peer'], 'unknown control message %x' % opcode)
             else:
@@ -583,7 +583,7 @@ class WebSocketServer(object):
         pingTimeout = wsPingPeriod * wsMaxPings + 3
         try:
             while self.SERVER_ACTIVE:
-                log(None, 'Pinging %d clients' % len(self.clients))
+                #log(None, 'Pinging %d clients' % len(self.clients))
                 self.sendData('BigClock', opcode=0x9)
                 now = time.time()
                 for client in self.clients.values():
