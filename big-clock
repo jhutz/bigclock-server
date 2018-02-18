@@ -1036,7 +1036,7 @@ class RMonitorRelay(object):
                     self.ws.new_client_data[''] = fields
                 elif fields[0] in {'$A' }:
                     self.ws.new_client_data[ '%s%s' % (fields[0], fields[1]) ] = fields
-                elif fields[0] in {'$G'}:
+                elif fields[0] in {'$C','$G'}:
                     self.ws.new_client_data[ '%s%3d' % (fields[0], int(fields[1])) ] = fields
                 elif fields[0] in {'$B'}:
                     self.ws.new_client_data[fields[0]] = fields

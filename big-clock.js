@@ -15,6 +15,7 @@ var f_laps2go  = document.getElementById("laps2go");
 var f_elapsed  = document.getElementById("elapsed");
 var f_timeleft = document.getElementById("timeleft");
 var f_leaders  = document.getElementById("leaders");
+var f_clslead  = document.getElementById("clslead");
 var f_message  = document.getElementById("message");
 var f_error    = document.getElementById("error");
 
@@ -36,6 +37,9 @@ var display_mode;
 var display_modes = [ "raceinfo", "bigtod" ]
 var maxLeaders = 3;
 var cars = new Object;
+var classes = new Object;
+var car_class = new Object;
+var class_lead = new Object;
 var leaders = [];
 var tod_is_local = false;
 var opts_changed = false;
@@ -195,9 +199,13 @@ function doconnect() {
              */
             if (fields[0] == '$A') {
               cars[fields[1]] = fields[2];
+              car_class[fields[1]] = fields[7];
             } else if (fields[0] == '$B') {
               /* Run info: $B,id,description */
               f_run.textContent = fields[2];
+            } else if (fields[0] == '$C') {
+              /* Class: $C,classno,description */
+              classes[fields[1]] = fields[2];
             } else if (fields[0] == '$F') {
               /* flag info: $F,laps2go,remaining,tod,elapsed,flag */
               if (fields[1] == 9999) f_laps2go.textContent = '';
@@ -211,15 +219,37 @@ function doconnect() {
             } else if (fields[0] == '$G') {
               /* race info: $G,pos,regcode,laps,time */
               if (fields[1] == 1) f_laps.textContent = fields[3];
+              leaders[fields[1]-1] = fields[2];
               if (fields[1] <= maxLeaders) {
-                leaders[fields[1]-1] = cars[fields[2]];
                 var leaderstr = '';
                 for (var i = 0; i < maxLeaders; i++) {
                   if (leaders[i] === undefined) break;
                   if (i > 0) leaderstr += ', ';
-                  leaderstr += leaders[i];
+                  leaderstr += cars[leaders[i]];
                 }
                 f_leaders.textContent = leaderstr;
+              }
+              var cls = car_class[fields[2]];
+              if (cls !== undefined) {
+                var new_lead = undefined;
+                for (var i = 0; i < leaders.length; i++) {
+                  if (leaders[i] === undefined) continue;
+                  if (car_class[leaders[i]] == cls) {
+                    new_lead = leaders[i];
+                    break;
+                  }
+                }
+                if (class_lead[cls] != new_lead) {
+                  class_lead[cls] = new_lead;
+                  var clsleads = [];
+                  for (var c in class_lead) {
+                    if (classes[c] === undefined) continue
+                    if (cars[class_lead[c]] === undefined) continue
+                    clsleads.push(classes[c] + ': ' + cars[class_lead[c]]);
+                  }
+                  clsleads.sort();
+                  f_clslead.textContent = clsleads.join(', ');
+                }
               }
             } else if (fields[0] == '$I') {
               tod_is_local = false;
@@ -236,7 +266,11 @@ function doconnect() {
               f_elapsed  .textContent = '--:--:--';
               f_timeleft .textContent = '--:--:--';
               f_leaders  .textContent = '';
+              f_clslead  .textContent = '';
               cars = new Object;
+              classes = new Object;
+              car_class = new Object;
+              class_lead = new Object;
               leaders = [];
             } else if (fields[0] == ':E') {
               server_error = fields[1];
