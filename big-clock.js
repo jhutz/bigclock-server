@@ -181,7 +181,7 @@ function doconnect() {
               s.send("pong");
               return;
             }
-            fields = JSON.parse(e.data);
+            var fields = JSON.parse(e.data);
             //f_run.textContent = fields[0];
             /* Possible field formats:
              *   $A,regno,car,txno,first,last,nat,classno
