@@ -219,7 +219,12 @@ function doconnect() {
             } else if (fields[0] == '$G') {
               /* race info: $G,pos,regcode,laps,time */
               if (fields[1] == 1) f_laps.textContent = fields[3];
-              leaders[fields[1]-1] = fields[2];
+              /* ignore cars with 0 time, except overall leader */
+              if (fields[1] > 1 && fields[4] == "00:00:00.000") {
+                leaders[fields[1]-1] = undefined;
+              } else {
+                leaders[fields[1]-1] = fields[2];
+              }
               if (fields[1] <= maxLeaders) {
                 var leaderstr = '';
                 for (var i = 0; i < maxLeaders; i++) {
