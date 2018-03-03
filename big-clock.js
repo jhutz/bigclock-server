@@ -217,6 +217,7 @@ function doconnect() {
               tod_is_local = false;
               setFlag(fields[5]);
             } else if (fields[0] == '$G') {
+              var leaderstr;
               /* race info: $G,pos,regcode,laps,time */
               if (fields[1] == 1) f_laps.textContent = fields[3];
               /* ignore cars with 0 time, except overall leader */
@@ -226,34 +227,35 @@ function doconnect() {
                 leaders[fields[1]-1] = fields[2];
               }
               if (fields[1] <= maxLeaders) {
-                var leaderstr = '';
-                for (var i = 0; i < maxLeaders; i++) {
+                leaderstr = '';
+                for (var i = 0; i < leaders.length && i < maxLeaders; i++) {
                   if (leaders[i] === undefined) break;
-                  if (i > 0) leaderstr += ', ';
+                  if (leaderstr != '') leaderstr += ', ';
                   leaderstr += cars[leaders[i]];
                 }
                 f_leaders.textContent = leaderstr;
               }
               var cls = car_class[fields[2]];
               if (cls !== undefined) {
-                var new_lead = undefined;
-                for (var i = 0; i < leaders.length; i++) {
-                  if (leaders[i] === undefined) continue;
-                  if (car_class[leaders[i]] == cls) {
-                    new_lead = leaders[i];
-                    break;
-                  }
+                leaderstr = '';
+                var n = 0;
+                for (var i = 0; i < leaders.length && n < maxLeaders; i++) {
+                  if (car_class[leaders[i]] != cls) continue;
+                  if (leaders[i] === undefined) break;
+                  if (leaderstr != '') leaderstr += ', ';
+                  leaderstr += cars[leaders[i]];
+                  n++;
                 }
-                if (class_lead[cls] != new_lead) {
-                  class_lead[cls] = new_lead;
+                if (class_lead[cls] != leaderstr) {
+                  class_lead[cls] = leaderstr;
                   var clsleads = [];
                   for (var c in class_lead) {
                     if (classes[c] === undefined) continue
-                    if (cars[class_lead[c]] === undefined) continue
-                    clsleads.push(classes[c] + ': ' + cars[class_lead[c]]);
+                    if (class_lead[c] == '') continue
+                    clsleads.push(classes[c] + ': ' + class_lead[c]);
                   }
                   clsleads.sort();
-                  f_clslead.textContent = clsleads.join(', ');
+                  f_clslead.textContent = clsleads.join('; ');
                 }
               }
             } else if (fields[0] == '$I') {
