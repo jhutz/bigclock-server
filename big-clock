@@ -37,6 +37,7 @@ maxMessageLen = 1024
 watchdogTimeout = 5
 wsPingPeriod = 5
 wsMaxPings = 3
+have_syslog = False
 gui_app = None
 ReExec = False
 
@@ -49,6 +50,12 @@ try:
 except ImportError:
     def cloexec(sock):
         pass
+try:
+    import syslog
+    have_syslog = True
+except ImportError:
+    pass
+
 
 class TkConfigVars(UserDict.DictMixin):
     def __init__(self,data,intkeys={}):
@@ -79,6 +86,9 @@ def parse_args():
             help='port for monitor connections')
     parser.add_argument('--console-port',   type=int, metavar='PORT', default=9977,
             help='port for console connections')
+    if have_syslog:
+        parser.add_argument('--syslog', action='store_const', const=True,
+                help='Send logs to syslog')
     parser.add_argument('--timezone',       default='America/New_York',
             help='timezone for clock display')
     parser.add_argument('--version', action='version', version=server_version)
@@ -88,14 +98,20 @@ def parse_args():
             help='rmonitor server port', default=50000)
     config = vars(parser.parse_args())
     if config['gui'] == None: config['gui'] = True
+    if config['syslog']:
+        syslog.openlog()
 
 def log(peer, msg):
-    preamble = time.strftime('%b %d %H:%M:%S')
+    global config
+    when = time.strftime('%b %d %H:%M:%S')
     if peer != None:
-        preamble += ' ' + peer
-    msg = preamble + ' ' + msg
-    if gui_app: gui_app.log(msg)
-    else: sys.stdout.write(msg + '\n')
+        msg = peer + ' ' + msg
+    if gui_app:
+        gui_app.log(when + ' ' + msg)
+    elif config['syslog']:
+        syslog.syslog(msg)
+    else:
+        sys.stdout.write(when + ' ' + msg + '\n')
 
 ZC_SERVICES_TYPE = '_services._dns-sd._udp.local.'
 class AddressMapper(object):
