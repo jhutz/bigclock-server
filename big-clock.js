@@ -39,8 +39,14 @@ var maxLeaders = 3;
 var cars = new Object;
 var classes = new Object;
 var car_class = new Object;
-var class_lead = new Object;
-var leaders = [];
+var is_qual = false;
+var Gclass_lead = new Object;
+var Gclass_lead_text = "";
+var Gleaders = [];
+var Gleaders_text = "";
+var Hclass_lead_text = "";
+var Hleaders = [];
+var Hleaders_text = "";
 var tod_is_local = false;
 var opts_changed = false;
 var hb_timeout;
@@ -200,12 +206,24 @@ function doconnect() {
             if (fields[0] == '$A') {
               cars[fields[1]] = fields[2];
               car_class[fields[1]] = fields[7];
+
             } else if (fields[0] == '$B') {
               /* Run info: $B,id,description */
               f_run.textContent = fields[2];
+              if (!is_qual && fields[2].match(/qual/i)) {
+                is_qual = true;
+                f_leaders.textContent = Hleaders_text;
+                f_clslead.textContent = Hclass_lead_text;
+              } else if (is_qual && !fields[2].match(/qual/i)) {
+                is_qual = false;
+                f_leaders.textContent = Gleaders_text;
+                f_clslead.textContent = Gclass_lead_text;
+              }
+
             } else if (fields[0] == '$C') {
               /* Class: $C,classno,description */
               classes[fields[1]] = fields[2];
+
             } else if (fields[0] == '$F') {
               /* flag info: $F,laps2go,remaining,tod,elapsed,flag */
               if (fields[1] == 9999) f_laps2go.textContent = '';
@@ -216,48 +234,105 @@ function doconnect() {
               f_elapsed  .textContent = fields[4];
               tod_is_local = false;
               setFlag(fields[5]);
+
             } else if (fields[0] == '$G') {
               var leaderstr;
               /* race info: $G,pos,regcode,laps,time */
               if (fields[1] == 1) f_laps.textContent = fields[3];
               /* ignore cars with 0 time, except overall leader */
               if (fields[1] > 1 && fields[4] == "00:00:00.000") {
-                leaders[fields[1]-1] = undefined;
+                Gleaders[fields[1]-1] = undefined;
               } else {
-                leaders[fields[1]-1] = fields[2];
+                Gleaders[fields[1]-1] = fields[2];
               }
               if (fields[1] <= maxLeaders) {
                 leaderstr = '';
-                for (var i = 0; i < leaders.length && i < maxLeaders; i++) {
-                  if (leaders[i] === undefined) break;
+                for (var i = 0; i < Gleaders.length && i < maxLeaders; i++) {
+                  if (Gleaders[i] === undefined) break;
                   if (leaderstr != '') leaderstr += ', ';
-                  leaderstr += cars[leaders[i]];
+                  leaderstr += cars[Gleaders[i]];
                 }
-                f_leaders.textContent = leaderstr;
+                Gleaders_text = leaderstr;
+                if (!is_qual) {
+                  f_leaders.textContent = Gleaders_text;
+                }
               }
               var cls = car_class[fields[2]];
               if (cls !== undefined) {
                 leaderstr = '';
                 var n = 0;
-                for (var i = 0; i < leaders.length && n < maxLeaders; i++) {
-                  if (car_class[leaders[i]] != cls) continue;
-                  if (leaders[i] === undefined) break;
+                for (var i = 0; i < Gleaders.length && n < maxLeaders; i++) {
+                  if (car_class[Gleaders[i]] != cls) continue;
+                  if (Gleaders[i] === undefined) break;
                   if (leaderstr != '') leaderstr += ', ';
-                  leaderstr += cars[leaders[i]];
+                  leaderstr += cars[Gleaders[i]];
                   n++;
                 }
-                if (class_lead[cls] != leaderstr) {
-                  class_lead[cls] = leaderstr;
+                if (Gclass_lead[cls] != leaderstr) {
+                  Gclass_lead[cls] = leaderstr;
                   var clsleads = [];
-                  for (var c in class_lead) {
+                  for (var c in Gclass_lead) {
                     if (classes[c] === undefined) continue
-                    if (class_lead[c] == '') continue
-                    clsleads.push(classes[c] + ': ' + class_lead[c]);
+                    if (Gclass_lead[c] == '') continue
+                    clsleads.push(classes[c] + ': ' + Gclass_lead[c]);
                   }
                   clsleads.sort();
-                  f_clslead.textContent = clsleads.join('; ');
+                  Gclass_lead_text = clsleads.join('; ');
+                  if (!is_qual) {
+                    f_clslead.textContent = Gclass_lead_text;
+                  }
                 }
               }
+
+            } else if (fields[0] == '$H') {
+              var leaderstr;
+              /* race info: $G,pos,regcode,laps,time */
+              /* qual info: $H,pos,regno,bestlap,besttime */
+              /* ignore cars with 0 time, except overall leader */
+              if (fields[1] > 1 && fields[4] == "00:00:00.000") { //XXX
+                Hleaders[fields[1]-1] = undefined;
+              } else {
+                Hleaders[fields[1]-1] = fields[2];
+              }
+              if (fields[1] <= maxLeaders) {
+                leaderstr = '';
+                for (var i = 0; i < Hleaders.length && i < maxLeaders; i++) {
+                  if (Hleaders[i] === undefined) break;
+                  if (leaderstr != '') leaderstr += ', ';
+                  leaderstr += cars[Hleaders[i]];
+                }
+                Hleaders_text = leaderstr;
+                if (is_qual) {
+                  f_leaders.textContent = Hleaders_text;
+                }
+              }
+              var cls = car_class[fields[2]];
+              if (cls !== undefined) {
+                leaderstr = '';
+                var n = 0;
+                for (var i = 0; i < Hleaders.length && n < maxLeaders; i++) {
+                  if (car_class[Hleaders[i]] != cls) continue;
+                  if (Hleaders[i] === undefined) break;
+                  if (leaderstr != '') leaderstr += ', ';
+                  leaderstr += cars[Hleaders[i]];
+                  n++;
+                }
+                if (Hclass_lead[cls] != leaderstr) {
+                  Hclass_lead[cls] = leaderstr;
+                  var clsleads = [];
+                  for (var c in Hclass_lead) {
+                    if (classes[c] === undefined) continue
+                    if (Hclass_lead[c] == '') continue
+                    clsleads.push(classes[c] + ': ' + Hclass_lead[c]);
+                  }
+                  clsleads.sort();
+                  Hclass_lead_text = clsleads.join('; ');
+                  if (is_qual) {
+                    f_clslead.textContent = Hclass_lead_text;
+                  }
+                }
+              }
+
             } else if (fields[0] == '$I') {
               tod_is_local = false;
               f_tod.textContent = fields[1];
@@ -277,8 +352,15 @@ function doconnect() {
               cars = new Object;
               classes = new Object;
               car_class = new Object;
-              class_lead = new Object;
-              leaders = [];
+              is_qual = false;
+              Gclass_lead = new Object;
+              Gclass_lead_text = "";
+              Gleaders = [];
+              Gleaders_text = "";
+              Hclass_lead = new Object;
+              Hclass_lead_text = "";
+              Hleaders = [];
+              Hleaders_text = "";
             } else if (fields[0] == ':E') {
               server_error = fields[1];
               showError(server_error);
