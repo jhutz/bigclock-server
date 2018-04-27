@@ -9,6 +9,7 @@ import ScrolledText
 import UserDict
 import BaseHTTPServer
 import SimpleHTTPServer
+from SocketServer import ThreadingMixIn
 import socket
 import zeroconf
 import struct
@@ -163,6 +164,10 @@ class AddressMapper(object):
 class MyHTTPRequestHandler(SimpleHTTPServer.SimpleHTTPRequestHandler):
     protocol_version = "HTTP/1.0"
 
+    def setup(self):
+        self.timeout = 15
+        SimpleHTTPServer.SimpleHTTPRequestHandler.setup(self)
+
     def send_head(self):
         #log("%s:%d" % self.client_address, "send_head %s" % self.path)
         if self.path == "/":
@@ -200,8 +205,9 @@ class MyHTTPRequestHandler(SimpleHTTPServer.SimpleHTTPRequestHandler):
         stamp = time.strftime('%y%m%d-%H%M%S', time.localtime(s.st_mtime))
         outputfile.write(source.read().replace('@@@@@@-@@@@@@',stamp))
 
-class MyHTTPServer(BaseHTTPServer.HTTPServer):
+class MyHTTPServer(ThreadingMixIn, BaseHTTPServer.HTTPServer):
     def __init__(self, *args, **kwargs):
+        self.daemon_threads = True
         BaseHTTPServer.HTTPServer.__init__(self, *args, **kwargs)
         cloexec(self.socket)
 
