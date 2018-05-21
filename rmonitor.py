@@ -30,6 +30,7 @@ import codecs
 import csv
 import json
 import io
+import asyncio
 import asyncio_dispatch
 
 class RMonitorReport:
@@ -529,3 +530,65 @@ class RMonitorCache:
     async def _signal_cb(self, report, **kw):
         """Signal callback for automatic cache updates."""
         self.update(report)
+
+
+class _StreamDiscarder(asyncio.StreamReader):
+    """Like StreamReader, except all the incoming data is discarded."""
+    def feed_data(self, data): pass
+
+
+class RMonitorRelayClient(asyncio.StreamReaderProtocol):
+    def __init__(self, cache=None, signal=None):
+        self._signal = signal
+        if cache is None:
+            cache = RMonitorCache.get_cache()
+        self._queue = asyncio.Queue()
+        for report in cache.contents():
+            self._queue.put_nowait(report)
+        super().__init__(_StreamDiscarder(), self._connected)
+
+    async def _connected(self, reader, writer):
+        """Connection established callback."""
+        self._sender_task = asyncio.Task.current_task()
+        async with RMonitorReport.Subscription(self._signal_cb, signal=self._signal):
+            try:
+                while True:
+                    report = await self._queue.get()
+                    writer.write(report.as_csv())
+                    self._queue.task_done()
+            except asyncio.CancelledError: pass
+
+    async def _signal_cb(self, report, **kw):
+        """Signal callback"""
+        await self._queue.put(report)
+
+    def connection_lost(self, exc):
+        """Connection lost callback."""
+        self._sender_task.cancel()
+        super().connection_lost(exc)
+
+
+class RMonitorRelay:
+    def __init__(self, host=None, port=50000, cache=None, signal=None):
+        self.host   = host
+        self.port   = port
+        self.cache  = cache
+        self.signal = signal
+        self.server = None
+
+    def factory(self):
+        return RMonitorRelayClient(cache=self.cache, signal=self.signal)
+
+    async def _start(self):
+        loop = asyncio.get_event_loop()
+        self.server = await loop.create_server(self.factory, self.host, self.port)
+
+    def start_server(self):
+        asyncio.ensure_future(self._start())
+
+    def stop_server(self):
+        if self.server is not None:
+            self.server.close()
+            self.server = None
+
+    # XXX add operations for changing the host and/or port with auto-restart
