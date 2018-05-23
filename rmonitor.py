@@ -135,9 +135,13 @@ class RMonitorReport:
     def as_csv(self, charset='cp1252'):
         """Encode this report as an RMONITOR CSV record."""
         if self._csv is None:
+            fields = list(self.fields)
+            if self.kind == '$F' and len(fields) > 5:
+                # KLUDGE: CSV expects the flag state to be space-padded
+                fields[5] = "%-6s" % fields[5]
             s = io.StringIO(newline='')
             cw = csv.writer(s)
-            cw.writerow(self.fields)
+            cw.writerow(fields)
             self._csv = s.getvalue()
             s.close()
         if charset is None: return self._csv
