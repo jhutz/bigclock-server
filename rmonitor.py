@@ -63,26 +63,6 @@ class RMonitorReport:
         return _register
 
     @classmethod
-    def single_key(cls, subclass):
-        """Declare an RMonitor report type to use no subkey."""
-        subclass.cache_key = subclass._ckey_single
-        return subclass
-
-    @classmethod
-    def string_key(cls, subclass):
-        """Declare an RMonitor report type to use a string subkey."""
-        subclass.cache_key = subclass._ckey_str
-        return subclass
-
-    @classmethod
-    def int_key(cls, subclass):
-        """Declare an RMonitor report type to use an integer subkey."""
-        subclass.cache_key = subclass._ckey_int
-        return subclass
-
-
-    ## Creation from various data forms, with automatic subclassing
-    @classmethod
     def create(cls, data, strict=False, csv_text=None, json_text=None):
         """Create a new RMONITOR report.
 
@@ -170,34 +150,44 @@ class RMonitorReport:
         return self._json
 
     def cache_key(self):
-        """Return a key used for caching this report, or None.
-        
-        The returned key in this case is None, indicating the record should
-        not be cached.
-        """
-        return None
+        """Return a key used for caching this report, or None."""
+        if not hasattr(self, '_ckey'):
+            return None
+        return self._ckey(self.fields)
 
-    def _ckey_single(self):
-        """Return a key used for caching this report, or None.
+    @classmethod
+    def cache_key_for_data(cls, data):
+        kind = data[0]
+        if kind not in cls.__types:
+            return None
+        if not hasattr(cls.__types[kind], '_ckey'):
+            return None
+        return cls.__types[kind]._ckey(data)
+
+    @staticmethod
+    def _ckey_single(fields):
+        """Return a cache key for a singleton report.
         
         This key form is based only on the report type. It is used for report
         types which contain global state, for which every report replaces the
         previous data of the same type.
         """
-        return self.kind
+        return fields[0]
 
-    def _ckey_str(self):
-        """Return a key used for caching this report, or None.
+    @staticmethod
+    def _ckey_mapping(fields):
+        """Return a cache key for a mapping-type report.
         
         This key form is based on the report type and first data field.  It is
         used for report types containing information about a particular entity,
         such as a competitor, where new reports replace only the previous data
         for the same entity.
         """
-        return '%s:%s' % (self.kind, self.fields[1])
+        return '%s:%s' % (fields[0], fields[1])
 
-    def _ckey_int(self):
-        """Return a key used for caching this report, or None.
+    @staticmethod
+    def _ckey_list(fields):
+        """Return a cache key for an indexed report.
         
         This key form is based on the report type and first data field and
         formats the data field as an integer, allowing cache data to be sorted
@@ -205,7 +195,7 @@ class RMonitorReport:
         numbered, ordered rows, such as race position information, where each
         new report replaces only the previous data for the same row.
         """
-        return '%s#%06d' % (self.kind, int(self.fields[1]))
+        return '%s#%06d' % (fields[0], int(fields[1]))
 
     __signal = None
 
@@ -237,7 +227,6 @@ class RMonitorReport:
 
 
 @RMonitorReport.register('$A')
-@RMonitorReport.string_key
 class RMonitor_Entry(RMonitorReport):
     """RMONITOR Entry Data ($A)
 
@@ -250,6 +239,7 @@ class RMonitor_Entry(RMonitorReport):
     - extra         First "additional data" field
     - clsid         Class ID
     """
+    _ckey = staticmethod(RMonitorReport._ckey_mapping)
     def _setup(self):
         self.id         = self.fields[1]
         self.car        = self.fields[2]
@@ -260,7 +250,6 @@ class RMonitor_Entry(RMonitorReport):
         self.clsid      = self.fields[7]
 
 @RMonitorReport.register('$B')
-@RMonitorReport.single_key
 class RMonitor_Run(RMonitorReport):
     """RMONITOR Run Info ($B)
 
@@ -269,26 +258,26 @@ class RMonitor_Run(RMonitorReport):
     - run_name      Name of run
     - is_active     True iff this is an active run
     """
+    _ckey = staticmethod(RMonitorReport._ckey_single)
     def _setup(self):
         self.id         = int(self.fields[1])
         self.run_name   = self.fields[2]
         self.is_active  = self.id != 95
 
 @RMonitorReport.register('$C')
-@RMonitorReport.int_key
 class RMonitor_Class(RMonitorReport):
     """RMONITOR Class Info ($C)
 
     Additional Instance Variables:
-    - id            Class ID (integer)
+    - id            Class ID
     - class_name    Name of class
     """
+    _ckey = staticmethod(RMonitorReport._ckey_mapping)
     def _setup(self):
         self.id         = self.fields[1]
         self.class_name = self.fields[2]
 
 @RMonitorReport.register('$COMP')
-@RMonitorReport.string_key
 class RMonitor_Competitor(RMonitorReport):
     """RMONITOR Competitor Data ($COMP)
 
@@ -301,6 +290,7 @@ class RMonitor_Competitor(RMonitorReport):
     - extra         First "additional data" field
     - extra2        Second "additional data" field
     """
+    _ckey = staticmethod(RMonitorReport._ckey_mapping)
     def _setup(self):
         self.id         = self.fields[1]
         self.car        = self.fields[2]
@@ -311,7 +301,6 @@ class RMonitor_Competitor(RMonitorReport):
         self.extra2     = self.fields[7]
 
 @RMonitorReport.register('$E')
-@RMonitorReport.string_key
 class RMonitor_ExtraInfo(RMonitorReport):
     """RMONITOR Extra Info ($E)
 
@@ -319,12 +308,12 @@ class RMonitor_ExtraInfo(RMonitorReport):
     - extra_key     Extra data item key
     - extra_value   Extra data item value
     """
+    _ckey = staticmethod(RMonitorReport._ckey_mapping)
     def _setup(self):
         self.extra_key    = self.fields[1]
         self.extra_value  = self.fields[2]
 
 @RMonitorReport.register('$F')
-@RMonitorReport.single_key
 class RMonitor_Flag(RMonitorReport):
     """RMONITOR Flag / Run State ($F)
 
@@ -335,6 +324,7 @@ class RMonitor_Flag(RMonitorReport):
     - elapsed       Elapsed time
     - flag          Flag condition
     """
+    _ckey = staticmethod(RMonitorReport._ckey_single)
     def _setup(self):
         self.laps_left  = int(self.fields[1])
         self.time_left  = self.fields[2]
@@ -345,7 +335,6 @@ class RMonitor_Flag(RMonitorReport):
         if self.time_left == "00:00:00": self.time_left = None
 
 @RMonitorReport.register('$G')
-@RMonitorReport.int_key
 class RMonitor_PositionData(RMonitorReport):
     """RMONITOR Race Position Report ($G)
 
@@ -355,6 +344,7 @@ class RMonitor_PositionData(RMonitorReport):
     - laps          Laps completed
     - time          Total time
     """
+    _ckey = staticmethod(RMonitorReport._ckey_list)
     def _setup(self):
         self.pos    = int(self.fields[1])
         self.id     = self.fields[2]
@@ -362,7 +352,6 @@ class RMonitor_PositionData(RMonitorReport):
         self.time   = self.fields[4]
 
 @RMonitorReport.register('$H')
-@RMonitorReport.int_key
 class RMonitor_LapTimeData(RMonitorReport):
     """RMONITOR Practice/Qualifying Report ($H)
 
@@ -372,6 +361,7 @@ class RMonitor_LapTimeData(RMonitorReport):
     - best_lap      Best lap, or None
     - best_time     Best lap time, or None
     """
+    _ckey = staticmethod(RMonitorReport._ckey_list)
     def _setup(self):
         self.pos       = int(self.fields[1])
         self.id        = self.fields[2]
@@ -389,21 +379,13 @@ class RMonitor_Reset(RMonitorReport):
     - tod           Time of day
     - date          Date
     """
-    def cache_key(self):
-        """Return a key used for caching this report, or None.
-
-        This record type ($I) is a special case -- it contains global state,
-        but also must be reported first, before any other cache data, because
-        clients receiving this report will discard any previously-received
-        information. To achieve this, the empty string is used as the key.
-        """
-        return ''
+    @staticmethod
+    def _ckey(fields): return ''
     def _setup(self):
         self.tod        = self.fields[1]
         self.date       = self.fields[2]
 
 @RMonitorReport.register('$J')
-@RMonitorReport.string_key
 class RMonitor_PassingData(RMonitorReport):
     """RMONITOR Passing Report ($J)
 
@@ -412,6 +394,7 @@ class RMonitor_PassingData(RMonitorReport):
     - last_lap      Last lap time, or None
     - time          Total time
     """
+    _ckey = staticmethod(RMonitorReport._ckey_mapping)
     def _setup(self):
         self.id        = self.fields[1]
         self.last_lap  = self.fields[2]
@@ -444,7 +427,6 @@ class RMonitor_LineCrossing(RMonitorReport):
             self.driver_id = None
 
 @RMonitorReport.register('$T')
-@RMonitorReport.single_key
 class RMonitor_TrackInfo(RMonitorReport):
     """RMONITOR Line Crossing Report ($L) [IMSA]
 
@@ -460,6 +442,7 @@ class RMonitor_TrackInfo(RMonitorReport):
     - end           Designator of ending timeline
     - dist          Distance (inches)
     """
+    _ckey = staticmethod(RMonitorReport._ckey_single)
     def _setup(self):
         self.track_name = self.fields[1]
         self.track_nick = self.fields[2]
