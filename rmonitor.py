@@ -457,12 +457,57 @@ class RMonitor_TrackInfo(RMonitorReport):
 
 
 class RMonitorCache:
-    def __init__(self, signal=None):
-        """Create a new RMONITOR cache."""
-        self.__cache = {}
+    __default_cache = None
 
-    def process(self, report):
-        if report.kind == '$I': self.__cache = {}
+    @classmethod
+    def get_cache(cls):
+        """Return the global default RMONITOR cache."""
+        if cls.__default_cache is None:
+            cls.__default_cache = cls()
+        return cls.__default_cache
+
+    def __init__(self):
+        """Create a new RMONITOR cache."""
+        self._cache = {}
+
+    def update(self, report):
+        """Update the cache with a new report."""
+        if report.kind == '$I': self._cache = {}
         key = report.cache_key()
         if key is not None:
-            self.__cache[key] = report
+            self._cache[key] = report
+
+    def lookup(self, kind, key=None):
+        """Fetch a specified report from the cache."""
+        key = RMonitorReport.cache_key_for_data([kind, key])
+        if key is None:
+            return None
+        if key not in self._cache:
+            return None
+        return self._cache[key]
+
+    def contents(self):
+        """Retrieve a sorted list of all reports in the cache."""
+        return [ v for (k,v) in sorted(self._cache.items()) ]
+
+    async def auto_update(self, signal=None):
+        """Enable signal-based automatic cache updates.
+
+        Enable automatic updating of the cache based on signals sent by
+        RMonitorReport.signal() via the specified signal dispatcher, or
+        via RMonitorReport's default dispatcher if signal is None.
+        """
+        await RMonitorReport.subscribe(self._signal_cb, signal=signal)
+
+    async def stop_auto_update(self, signal=None):
+        """Disable signal-based automatic cache updates.
+
+        Disable automatic updating of the cache based on signals sent by
+        RMonitorReport.signal() via the specified signal dispatcher, or
+        via RMonitorReport's default dispatcher if signal is None.
+        """
+        await RMonitorReport.unsubscribe(self._signal_cb, signal=signal)
+
+    async def _signal_cb(self, report, **kw):
+        """Signal callback for automatic cache updates."""
+        self.update(report)
