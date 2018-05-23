@@ -225,6 +225,20 @@ class RMonitorReport:
             signal = self.__signal
         await signal.send(key=self.kind, report=self)
 
+    class Subscription:
+        def __init__(self, callback, types=None, signal=None):
+            self._callback = callback
+            self._types    = types
+            self._signal   = signal
+
+        async def __aenter__(self):
+            await RMonitorReport.subscribe(self._callback,
+                    self._types, self._signal)
+
+        async def __aexit__(self, exc_type, exc_value, traceback):
+            await RMonitorReport.unsubscribe(self._callback,
+                    self._types, self._signal)
+
 
 @RMonitorReport.register('$A')
 class RMonitor_Entry(RMonitorReport):
