@@ -25,13 +25,14 @@ Classes:
 - RMonitorCache             Cache of information received since start of run
 """
 
-
+import time
 import codecs
 import csv
 import json
 import io
 import asyncio
 import asyncio_dispatch
+import logging
 
 class RMonitorReport:
     """RMONITOR protocol report.
@@ -592,3 +593,28 @@ class RMonitorRelay:
             self.server = None
 
     # XXX add operations for changing the host and/or port with auto-restart
+
+
+async def _heartbeat():
+    now = time.strftime('%H:%M:%S')
+    today = time.strftime('%d %b %y')
+    await RMonitorReport.create(['$I', now, today]).signal()
+    data = ['$F', 9999, '00:00:00', now, '00:59:59.999','Green ']
+    while True:
+        data[3] = time.strftime('%H:%M:%S')
+        await RMonitorReport.create(data).signal()
+        await asyncio.sleep(1)
+
+async def _rmonitor_test():
+    cache = RMonitorCache.get_cache()
+    await cache.auto_update()
+    server = RMonitorRelay()
+    server.start_server()
+    await _heartbeat()
+
+if __name__ == '__main__':
+    loop = asyncio.get_event_loop()
+    loop.set_debug(True)
+    logging.basicConfig(level=logging.DEBUG)
+    asyncio.ensure_future(_rmonitor_test())
+    loop.run_forever()
