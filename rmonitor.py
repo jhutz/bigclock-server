@@ -46,18 +46,17 @@ class RMonitorReport:
     - as_csv        Convert report to a line of CSV data.
     - as_json       Convert report to a JSON array.
     - cache_key     Return a suitable key for caching this report.
-    - report        Send a signal about this report.
+    - signal        Send a signal about this report.
 
     Instance Variables:
     - kind          String describing the kind of record (the first field)
     - fields        Tuple of fields from the original report
     """
 
-    ## Registration and decorators
     __types = {}
     @classmethod
     def register(cls, type):
-        """Register an RMonitor report type subclass."""
+        """Designate an RMonitor report type subclass to be auto-registered."""
         def _register(subclass):
             cls.__types[type] = subclass
             return subclass
@@ -110,16 +109,6 @@ class RMonitorReport:
         return cls(data)
 
     @classmethod
-    def from_json(cls, text, strict=False):
-        """Create a new RMONITOR report from a JSON array.
-
-        This creates an RMONITOR report object of the appropriate type,
-        depending on the provided data. Operation is as for create(),
-        except that the input is a string containing a JSON array.
-        """
-        return cls.create(json.loads(text), strict=strict, json_text=text)
-
-    @classmethod
     def from_csv(cls, text, strict=False, charset='cp1252'):
         """Create a new RMONTIOR report from CSV data.
 
@@ -132,8 +121,16 @@ class RMonitorReport:
         data = next(csv.reader([text]))
         return cls.create(row, strict=strict, csv_text=text)
 
+    @classmethod
+    def from_json(cls, text, strict=False):
+        """Create a new RMONITOR report from a JSON array.
 
-    ## Initialization
+        This creates an RMONITOR report object of the appropriate type,
+        depending on the provided data. Operation is as for create(),
+        except that the input is a string containing a JSON array.
+        """
+        return cls.create(json.loads(text), strict=strict, json_text=text)
+
     def __init__(self, data, csv_text=None, json_text=None):
         """Create a new RMONITOR report.
 
@@ -155,8 +152,23 @@ class RMonitorReport:
 
     def _setup(self): pass
 
+    def as_csv(self, charset='cp1252'):
+        """Encode this report as an RMONITOR CSV record."""
+        if self._csv is None:
+            s = io.StringIO(newline='')
+            cw = csv.writer(s)
+            cw.writerow(self.fields)
+            self._csv = s.getvalue()
+            s.close()
+        if charset is None: return self._csv
+        return codecs.encode(self._csv, charset, errors='replace')
 
-    ## Caching key generation
+    def as_json(self):
+        """Encode this report as a JSON array."""
+        if self._json is None:
+            self._json = json.dumps(self.fields)
+        return self._json
+
     def cache_key(self):
         """Return a key used for caching this report, or None.
         
@@ -195,26 +207,6 @@ class RMonitorReport:
         """
         return '%s#%06d' % (self.kind, int(self.fields[1]))
 
-
-    ## Output generation
-    def as_csv(self, charset='cp1252')
-        """Encode this report as an RMONITOR CSV record."""
-        if self._csv is None:
-            s = io.StringIO(newline='')
-            cw = csv.writer(s)
-            cw.writerow(self.fields)
-            self._csv = s.getvalue()
-            s.close()
-        if charset is None: return self._csv
-        return codecs.encode(self._csv, charset, errors='replace')
-
-    def as_json(self):
-        """Encode this report as a JSON array."""
-        if self._json is None:
-            self._json = json.dumps(self.fields)
-        return self._json
-
-
     __signal = None
 
     @classmethod
@@ -235,7 +227,7 @@ class RMonitorReport:
             signal = cls.__signal
         await signal.disconnect(callback, keys=types)
 
-    async def report(self, signal=None):
+    async def signal(self, signal=None):
         """Send a signal reporting this event."""
         if signal is None and self.__signal is None:
             return
