@@ -21,6 +21,11 @@ div.chrome43 { /* For chromecast on a 4:3 screen */
   height: 600px;
   margin-top: 25px;
 }
+div.chromeTV { /* For chromecast on an overscanning 4:3 TV */
+  width: 80%;
+  height: 600px;
+  margin-top: 40px;
+}
 
 div.version {
   visibility: hidden;
@@ -32,6 +37,8 @@ div#version { top: 0; left:  0; }
 div#options { top: 0; right: 0; }
 div.chrome43 div#version { top: 15px; left:  85px; }
 div.chrome43 div#options { top: 15px; right: 85px; }
+div.chromeTV div#version { top: 30px; left:  185px; }
+div.chromeTV div#options { top: 30px; right: 185px; }
 
 /* raceinfo aka big-race-clock */
 tr.header      th { font-size: 48pt; font-weight: bold; }
@@ -52,6 +59,7 @@ div#flag     {
   text-align: right;
 }
 div.chrome43 div#flag { top: 15px; right: 85px; }
+div.chromeTV div#flag { top: 20px; right: 100px; }
 div.GreenFlag     { background: #00ff00; }
 div.YellowFlag    { background: #ffff00; }
 div.RedFlag       { background: #ff0000; color: #ffffff; }
@@ -73,6 +81,7 @@ div.CheckeredFlag { background: #000000; color: #ffffff;
 table.bigtod th { font-size:  60pt; font-weight: bold; text-align: center; }
 table.bigtod td { font-size: 220pt; font-weight: bold; text-align: center; }
 div.chrome43 table.bigtod td { font-size: 200pt; }
+div.chromeTV table.bigtod td { font-size: 200pt; }
 
 /* global status display */
 div.status   { font-size: 24pt; font-weight: normal; text-align: center; }
