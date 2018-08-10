@@ -101,7 +101,7 @@ class RMonitorReport:
         if charset is not None:
             text = codecs.decode(text, charset)
         data = next(csv.reader([text]))
-        return cls.create(row, strict=strict, csv_text=text)
+        return cls.create(data, strict=strict, csv_text=text)
 
     @classmethod
     def from_json(cls, text, strict=False):
@@ -593,6 +593,80 @@ class RMonitorRelay:
             self.server = None
 
     # XXX add operations for changing the host and/or port with auto-restart
+
+
+class RMonitorCollector():
+    """RMONITOR data stream collector.
+
+    This manages a connection to an RMONITOR data source, reading and processing
+    individual reports, feeding them to interested parties, timing out when the
+    connection has been idle too long, and so on. In most cases, only one active
+    collector should be feeding a signal source at any given time.
+
+    The connect() method is provided to simplify connecting to a data source
+    (pull mode), reading all available data, and returning when done.
+   """
+
+    def __init__(self, signal=None, loop=None):
+        if loop is None:
+            loop = asyncio.get_event_loop()
+        self.loop = loop
+        self.signal  = signal
+        self.server = None
+        self.puller = None
+        self.conns  = []
+
+    async def connect(self, host=None, port=None, loop=None):
+        reader, writer = await asyncio.open_connection(host, port, loop=loop)
+        await self._worker(reader, writer)
+
+    async def start_server(self, host=None, port=None):
+        self._stop()
+        self.server = await asyncio.start_server(self._connected, host, port, loop=self.loop)
+
+    async def start_pull(self, host=None, port=None):
+        self._stop()
+        self.puller = loop.create_task(self._puller(host, port))
+
+    async def _puller(self, host=None, port=None, loop=None):
+        while True:
+            reader, writer = await asyncio.open_connection(host, port, loop=self.loop)
+            self._connected(reader, writer)
+            #XXX wait
+
+    def stop(self):
+        self._stop()
+        for task in self.conns:
+            task.cancel()
+        self.conns = []
+
+    def _stop(self):
+        if self.server is not None:
+            self.server.close()
+            self.server = None
+        if self.puller is not None:
+            self.puller.cancel()
+            self.puller = None
+
+    def _connected(self, reader, writer):
+        conns.append(self.loop.create_task(self._worker(reader, writer)))
+
+    async def _worker(self, reader, writer):
+        """Connection established callback."""
+        #XXX sanity check
+        #XXX takeover as data source
+        while True:
+            try:
+                text = await reader.readline()
+            except ValueError:
+                continue
+            if len(text) == 0: break
+            if text == b'\n': continue
+            await RMonitorReport.from_csv(text).signal(self.signal)
+
+
+class RMonitorCollectorServer:
+    def __init__
 
 
 async def _heartbeat():
