@@ -33,8 +33,11 @@ div.version {
   font-size: 12pt; font-weight: normal;
   color: #ff00ff;
 }
+div#logo { top: 0; left: 0; position: absolute; }
+div#logo img { width: 175px; height: 125px; }
 div#version { top: 0; left:  0; }
 div#options { top: 0; right: 0; }
+div.chrome43 div#logo    { top: 15px; left:  85px; }
 div.chrome43 div#version { top: 15px; left:  85px; }
 div.chrome43 div#options { top: 15px; right: 85px; }
 div.chromeTV div#version { top: 30px; left:  185px; }
@@ -82,6 +85,7 @@ table.bigtod th { font-size:  60pt; font-weight: bold; text-align: center; }
 table.bigtod td { font-size: 220pt; font-weight: bold; text-align: center; }
 div.chrome43 table.bigtod td { font-size: 200pt; }
 div.chromeTV table.bigtod td { font-size: 200pt; }
+table.bigtod { position: relative; top: 100px; }
 
 /* global status display */
 div.status   { font-size: 24pt; font-weight: normal; text-align: center; }
