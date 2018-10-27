@@ -30,7 +30,7 @@ from traceback import format_exc as format
 
 server_version = '1.1'
 
-config_int = { 'http_port', 'rmon_port',
+config_int = { 'http_port', 'rmon_port', 'rmrelay_port',
         'data_port', 'console_port', 'monitor_port' }
 config_hide = { 'gui' }
 
@@ -87,6 +87,8 @@ def parse_args():
             help='port for monitor connections')
     parser.add_argument('--console-port',   type=int, metavar='PORT', default=9977,
             help='port for console connections')
+    parser.add_argument('--rmrelay-port',   type=int, metavar='PORT', default=9966,
+            help='port for rmonitor relay connections')
     if have_syslog:
         parser.add_argument('--syslog', action='store_const', const=True,
                 help='Send logs to syslog')
@@ -664,7 +666,7 @@ class WebSocketServer(object):
         ws_server_thr.start()
 
     def sendData(self, data, fin=True, opcode=1, masking_key=False,
-            clients=None, allClients=False):
+            clients=None, allClients=False, fields=None):
         if fin > 0x1:
             raise ValueError('FIN bit parameter must be 0 or 1')
         if 0x3 <= opcode <= 0x7 or 0xB <= opcode:
@@ -718,6 +720,8 @@ class WebSocketServer(object):
                         client['conn'].send(bytes(header + body))
                     elif client['type'] in { 'CONSOLE', 'MONITOR'}:
                         client['conn'].send(bytes(body + '\r\n'))
+                    elif client['type'] == 'RMON' and fields:
+                        client['conn'].send(bytes(','.join(fields) + '\r\n'))
                 except IOError, e:
                     log(client['peer'], 'send: %s' % e.args[0])
                     self._remove(client)
@@ -726,7 +730,7 @@ class WebSocketServer(object):
             print(e)
 
     def sendJSON(self, fields, clients=None, allClients=False):
-        self.sendData(json.dumps(fields),
+        self.sendData(json.dumps(fields), fields=fields,
                 clients=clients, allClients=allClients)
 
     def sendMessage(self, message):
@@ -1547,6 +1551,7 @@ if __name__ == '__main__':
     ws = WebSocketServer()
     console_acceptor = TCPUserServer('console_port', 'CONSOLE', ws)
     monitor_acceptor = TCPUserServer('monitor_port', 'MONITOR', ws)
+    rmrelay_acceptor = TCPUserServer('rmrelay_port', 'RMON', ws)
     rmon_relay = RMonitorRelay(ws)
 
     httpd = MyHTTPServer(('', config['http_port']), MyHTTPRequestHandler)
@@ -1560,6 +1565,7 @@ if __name__ == '__main__':
         ws.startServer()
         console_acceptor.startServer()
         monitor_acceptor.startServer()
+        rmrelay_acceptor.startServer()
         rmon_relay.start()
         httpd_thr.start()
 
@@ -1574,6 +1580,7 @@ if __name__ == '__main__':
     httpd.shutdown()
     console_acceptor.close()
     monitor_acceptor.close()
+    rmrelay_acceptor.close()
     ws.close()
     if ReExec:
         if sys.argv[0] == '' or sys.argv[0] == '-c':
