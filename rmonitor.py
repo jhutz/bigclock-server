@@ -592,6 +592,10 @@ class RMonitorRelay:
             self.server.close()
             self.server = None
 
+    async def connect_pipe(self, pipe):
+        loop = asyncio.get_event_loop()
+        await loop.connect_write_pipe(self.factory, pipe)
+
     # XXX add operations for changing the host and/or port with auto-restart
 
 
