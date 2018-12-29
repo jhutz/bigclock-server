@@ -607,30 +607,28 @@ class RMonitorCollector():
     (pull mode), reading all available data, and returning when done.
    """
 
-    def __init__(self, signal=None, loop=None):
-        if loop is None:
-            loop = asyncio.get_event_loop()
-        self.loop = loop
+    def __init__(self, signal=None):
         self.signal  = signal
         self.server = None
         self.puller = None
         self.conns  = []
 
-    async def connect(self, host=None, port=None, loop=None):
-        reader, writer = await asyncio.open_connection(host, port, loop=loop)
+    async def connect(self, host=None, port=None):
+        reader, writer = await asyncio.open_connection(host, port)
         await self._worker(reader, writer)
 
     async def start_server(self, host=None, port=None):
         self._stop()
-        self.server = await asyncio.start_server(self._connected, host, port, loop=self.loop)
+        self.server = await asyncio.start_server(self._connected, host, port)
 
     async def start_pull(self, host=None, port=None):
         self._stop()
+        loop = asyncio.get_event_loop()
         self.puller = loop.create_task(self._puller(host, port))
 
-    async def _puller(self, host=None, port=None, loop=None):
+    async def _puller(self, host=None, port=None):
         while True:
-            reader, writer = await asyncio.open_connection(host, port, loop=self.loop)
+            reader, writer = await asyncio.open_connection(host, port)
             self._connected(reader, writer)
             #XXX wait
 
@@ -649,7 +647,8 @@ class RMonitorCollector():
             self.puller = None
 
     def _connected(self, reader, writer):
-        conns.append(self.loop.create_task(self._worker(reader, writer)))
+        loop = asyncio.get_event_loop()
+        conns.append(loop.create_task(self._worker(reader, writer)))
 
     async def _worker(self, reader, writer):
         """Connection established callback."""
@@ -663,10 +662,6 @@ class RMonitorCollector():
             if len(text) == 0: break
             if text == b'\n': continue
             await RMonitorReport.from_csv(text).signal(self.signal)
-
-
-class RMonitorCollectorServer:
-    def __init__
 
 
 async def _heartbeat():
