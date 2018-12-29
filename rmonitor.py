@@ -654,9 +654,12 @@ class RMonitorCollector():
         self.conns.add(loop.create_task(self._worker(reader, writer)))
 
     async def _worker(self, reader, writer):
-        """Connection established callback."""
-        #XXX sanity check
-        #XXX takeover as data source
+        # sanity check state
+        starting = True
+        start_data = []
+        got_F = False
+        invalid = 0
+
         while True:
             try:
                 text = await reader.readline()
@@ -664,7 +667,51 @@ class RMonitorCollector():
                 continue
             if len(text) == 0: break
             if text == b'\n': continue
-            await RMonitorReport.from_csv(text).signal(self.signal)
+
+            # Process the line as a record. Invalid records are ignored
+            # during the sanity-check phase, except that more than 5
+            # invalid records in a row will terminate the connection.
+            # After the sanity-check succeeds, invalid records are passed
+            # along as usual.
+            try:
+                report = RMonitorReport.from_csv(text, strict=starting)
+            except ValueError:
+                report = None
+            except IndexError:
+                report = None
+            if report:
+                invalid = 0
+            else:
+                invalid = invalid + 1
+                if starting and invalid >= 5:
+                    break
+                elif starting:
+                    continue
+
+            # In order to consider this a valid data stream, we must receive
+            # a sensible initial sequence of records. This initial sequence
+            # begins with the first $F or $I record received, and continues
+            # until we have received a $F followed by any valid record. Any
+            # invalid records received during this sequence are ignored.
+
+            if starting and not got_F:
+                if start_data or report.kind == "$F" or report_kind == "$I":
+                    # Only a $F or $I starts collection of start data
+                    start_data.append(report)
+                if report.kind == "$F":
+                    # Only a $F marks the stream as valid
+                    got_F = True
+                continue
+            elif starting:
+                # This is the first valid record after a $F, so the sanity
+                # check is now complete. Exit sanity-check mode, kill any
+                # active connections, and process the deferred start data.
+                starting = False
+                self._stop_conns()
+                for r in start_data:
+                    await r.signal(self.signal)
+                start_data = []
+            await report.signal(self.signal)
         self.conns.discard(asyncio.Task.current_task())
 
 
