@@ -613,20 +613,20 @@ class RMonitorCollector():
         self.puller = None
         self.conns  = []
 
-    async def connect(self, host=None, port=None):
+    async def connect(self, host, port=50000):
         reader, writer = await asyncio.open_connection(host, port)
         await self._worker(reader, writer)
 
-    async def start_server(self, host=None, port=None):
+    async def start_server(self, host=None, port=40000):
         self._stop()
         self.server = await asyncio.start_server(self._connected, host, port)
 
-    async def start_pull(self, host=None, port=None):
+    async def start_pull(self, host, port=50000):
         self._stop()
         loop = asyncio.get_event_loop()
         self.puller = loop.create_task(self._puller(host, port))
 
-    async def _puller(self, host=None, port=None):
+    async def _puller(self, host, port):
         while True:
             reader, writer = await asyncio.open_connection(host, port)
             self._connected(reader, writer)
