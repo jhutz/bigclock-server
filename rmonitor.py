@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 # Copyright (c) 2018 Jeffrey Hutzelman
 # All Rights Reserved.
 # See LICENSE for licensing terms.
@@ -25,8 +26,10 @@ Classes:
 - RMonitorCache             Cache of information received since start of run
 """
 
+import sys
 import time
 import codecs
+import argparse
 import csv
 import json
 import io
@@ -729,16 +732,57 @@ async def _heartbeat():
         await RMonitorReport.create(data).signal()
         await asyncio.sleep(1)
 
-async def _rmonitor_test():
+async def _rmonitor_test(config):
+    loop = asyncio.get_event_loop()
     cache = RMonitorCache.get_cache()
     await cache.auto_update()
-    server = RMonitorRelay()
+    server = RMonitorRelay(port=config.relay_port)
     server.start_server()
-    await _heartbeat()
+    if config.local_output:
+        await server.connect_pipe(sys.stdout)
+    if config.generate:
+        loop.create_task(_heartbeat())
+    collector = RMonitorCollector()
+    if config.once:
+        await collector.connect(host=config.server, port=config.port)
+        loop.stop()
+    elif config.server:
+        await collector.start_pull(host=config.server, port=config.port)
+    else:
+        await collector.start_server(port=config.push_port)
 
 if __name__ == '__main__':
+    def port(arg_string):
+        val = int(arg_string)
+        if val < 1 or val > 65535:
+            raise ValueError("invalid port value: %s" % arg_string)
+        return val
+    ap = argparse.ArgumentParser(usage='%(prog)s [options] [server[:port]]')
+    ap._optionals.title = 'Options'
+    ap.add_argument('-d', '--debug', action='store_true',
+            help='Enable debugging')
+    ap.add_argument('-g', '--generate', action='store_true',
+            help='Generate sample data')
+    ap.add_argument('-l', '--local-output', action='store_true',
+            help='Print received data to stdout')
+    ap.add_argument('-o', '--once', action='store_true',
+            help='Single-shot - quit when server connection is lost')
+    ap.add_argument('-p', '--relay-port', type=port, metavar='PORT', default=50000,
+            help='Port for rmonitor relay server')
+    g = ap.add_mutually_exclusive_group()
+    g.add_argument('-P', '--push_port', type=port, metavar='PORT', default=40000,
+            help='Port to listen for incoming data')
+    g.add_argument('server', nargs='?',
+            help='rmonitor server name/address')
+    ap.add_argument('port', nargs='?', type=port, default=50000,
+            help='rmonitor server port')
+    config = ap.parse_args()
+    if config.once and not config.server:
+        ap.error('argument -o/--once requires argument server')
     loop = asyncio.get_event_loop()
-    loop.set_debug(True)
-    logging.basicConfig(level=logging.DEBUG)
-    asyncio.ensure_future(_rmonitor_test())
+    if config.debug:
+        loop.set_debug(True)
+        logging.basicConfig(level=logging.DEBUG)
+    loop.create_task(_rmonitor_test(config))
     loop.run_forever()
+    loop.close()
