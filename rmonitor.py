@@ -611,7 +611,7 @@ class RMonitorCollector():
         self.signal  = signal
         self.server = None
         self.puller = None
-        self.conns  = []
+        self.conns  = set()
 
     async def connect(self, host, port=50000):
         reader, writer = await asyncio.open_connection(host, port)
@@ -628,15 +628,11 @@ class RMonitorCollector():
 
     async def _puller(self, host, port):
         while True:
-            reader, writer = await asyncio.open_connection(host, port)
-            self._connected(reader, writer)
-            #XXX wait
+            await self.connect(host, port)
 
     def stop(self):
         self._stop()
-        for task in self.conns:
-            task.cancel()
-        self.conns = []
+        self._stop_conns()
 
     def _stop(self):
         if self.server is not None:
@@ -646,9 +642,16 @@ class RMonitorCollector():
             self.puller.cancel()
             self.puller = None
 
+    def _stop_conns(self):
+        this_task = asyncio.Task.current_task()
+        for task in list(self.conns):
+            if task is not this_task:
+                self.conns.remove(task)
+                task.cancel()
+
     def _connected(self, reader, writer):
         loop = asyncio.get_event_loop()
-        conns.append(loop.create_task(self._worker(reader, writer)))
+        self.conns.add(loop.create_task(self._worker(reader, writer)))
 
     async def _worker(self, reader, writer):
         """Connection established callback."""
@@ -662,6 +665,7 @@ class RMonitorCollector():
             if len(text) == 0: break
             if text == b'\n': continue
             await RMonitorReport.from_csv(text).signal(self.signal)
+        self.conns.discard(asyncio.Task.current_task())
 
 
 async def _heartbeat():
