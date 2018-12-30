@@ -86,7 +86,7 @@ class RMonitorReport:
         try:
             if kind not in cls.__types:
                 raise ValueError("Unrecognized RMonitor sentence type %s" % kind)
-            return cls.__types[kind](data)
+            return cls.__types[kind](data, csv_text=csv_text, json_text=json_text)
         except ValueError:
             if strict: raise
         except IndexError:
