@@ -617,12 +617,9 @@ class RMonitorRelay:
     def factory(self):
         return RMonitorRelayClient(cache=self.cache, signal=self.signal)
 
-    async def _start(self):
+    async def start_server(self):
         loop = asyncio.get_event_loop()
         self.server = await loop.create_server(self.factory, self.host, self.port)
-
-    def start_server(self):
-        asyncio.ensure_future(self._start())
 
     def stop_server(self):
         if self.server is not None:
@@ -771,7 +768,7 @@ async def _rmonitor_test(config):
     cache = RMonitorCache.get_cache()
     await cache.auto_update()
     server = RMonitorRelay(port=config.relay_port)
-    server.start_server()
+    await server.start_server()
     if config.local_output:
         await server.connect_pipe(sys.stdout)
     if config.generate:
