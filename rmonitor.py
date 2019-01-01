@@ -813,12 +813,23 @@ if __name__ == '__main__':
     config = ap.parse_args()
     if config.once and not config.server:
         ap.error('argument -o/--once requires argument server')
+
     loop = asyncio.get_event_loop()
     if config.debug:
         loop.set_debug(True)
         logging.basicConfig(level=logging.DEBUG)
     else:
         logging.basicConfig(level=logging.INFO)
-    loop.create_task(_standalone_setup(config))
-    loop.run_forever()
-    loop.close()
+
+    try:
+        loop.run_until_complete(_standalone_setup(config))
+        loop.run_forever()
+    except KeyboardInterrupt:
+        print("Shutting down; press Ctrl+C again to exit", flush=True)
+        tasks = asyncio.gather(*asyncio.Task.all_tasks(), return_exceptions=True)
+        tasks.add_done_callback(lambda t: loop.stop())
+        tasks.cancel()
+        while not tasks.done() and not loop.is_closed():
+            loop.run_forever()
+    finally:
+        loop.close()
