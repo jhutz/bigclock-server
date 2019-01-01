@@ -763,7 +763,11 @@ async def _heartbeat():
         await RMonitorReport.create(data).signal()
         await asyncio.sleep(1)
 
-async def _rmonitor_test(config):
+async def _standalone_once(collector, host, port):
+    await collector.pull_once(host, port)
+    asyncio.get_event_loop().stop()
+
+async def _standalone_setup(config):
     loop = asyncio.get_event_loop()
     cache = RMonitorCache.get_cache()
     await cache.auto_update()
@@ -775,8 +779,7 @@ async def _rmonitor_test(config):
         loop.create_task(_heartbeat())
     collector = RMonitorCollector()
     if config.once:
-        await collector.pull_once(config.server, config.port)
-        loop.stop()
+        loop.create_task(_standalone_once(collector, host, port))
     elif config.server:
         await collector.start_pull(config.server, config.port)
     else:
@@ -816,6 +819,6 @@ if __name__ == '__main__':
         logging.basicConfig(level=logging.DEBUG)
     else:
         logging.basicConfig(level=logging.INFO)
-    loop.create_task(_rmonitor_test(config))
+    loop.create_task(_standalone_setup(config))
     loop.run_forever()
     loop.close()
