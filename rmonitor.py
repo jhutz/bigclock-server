@@ -651,10 +651,6 @@ class RMonitorCollector():
         self.puller = None
         self.conns  = set()
 
-    async def connect(self, host, port=50000):
-        reader, writer = await asyncio.open_connection(host, port)
-        await self._worker(reader, writer)
-
     async def start_server(self, host=None, port=40000):
         self._stop()
         self.server = await asyncio.start_server(self._connected, host, port)
@@ -664,9 +660,13 @@ class RMonitorCollector():
         loop = asyncio.get_event_loop()
         self.puller = loop.create_task(self._puller(host, port))
 
+    async def pull_once(self, host, port=50000):
+        reader, writer = await asyncio.open_connection(host, port)
+        await self._worker(reader, writer)
+
     async def _puller(self, host, port):
         while True:
-            await self.connect(host, port)
+            await self.pull_once(host, port)
 
     def stop(self):
         self._stop()
@@ -775,10 +775,10 @@ async def _rmonitor_test(config):
         loop.create_task(_heartbeat())
     collector = RMonitorCollector()
     if config.once:
-        await collector.connect(host=config.server, port=config.port)
+        await collector.pull_once(config.server, config.port)
         loop.stop()
     elif config.server:
-        await collector.start_pull(host=config.server, port=config.port)
+        await collector.start_pull(config.server, config.port)
     else:
         await collector.start_server(port=config.push_port)
 
