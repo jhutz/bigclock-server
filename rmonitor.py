@@ -37,6 +37,21 @@ import asyncio
 import asyncio_dispatch
 import logging
 
+logger = logging.getLogger('rmonitor')
+
+
+# get a nice, human-readable address for a transport
+# this should get moved out of this module, eventually
+def txaddr(transport):
+    addr = transport.get_extra_info('peername')
+    if addr:
+        return '%s port %d' % addr
+    pipe = transport.get_extra_info('pipe')
+    if pipe:
+        return 'fd %d' % pipe.fileno()
+    return 'unknown addr'
+
+
 class RMonitorReport:
     """RMONITOR protocol report.
 
@@ -554,6 +569,9 @@ class RMonitorRelayClient(asyncio.StreamReaderProtocol):
     async def _connected(self, reader, writer):
         """Connection established callback."""
         self._sender_task = asyncio.Task.current_task()
+        self._sender_task.add_done_callback(self._disconnected)
+        self._peer = txaddr(writer.transport)
+        logger.info("New RMonitorRelay client %s" % self._peer)
         async with RMonitorReport.Subscription(self._signal_cb, signal=self._signal):
             try:
                 while True:
@@ -561,6 +579,19 @@ class RMonitorRelayClient(asyncio.StreamReaderProtocol):
                     writer.write(report.as_csv())
                     self._queue.task_done()
             except asyncio.CancelledError: pass
+
+    def _disconnected(self, fut):
+        exc = None if fut.cancelled() else fut.exception()
+        if exc:
+            context = { 'future' : fut, 'exception' : exc,
+                    'message': 'Exception in RMonitorRelay client %s' % self._peer
+                    }
+            if fut._source_traceback:
+                context['source_traceback'] = fut._source_traceback
+            loop = asyncio.get_event_loop()
+            loop.call_exception_handler(context)
+        else:
+            logger.info("RMonitorRelay client %s disconnected" % self._peer)
 
     async def _signal_cb(self, report, **kw):
         """Signal callback"""
@@ -570,6 +601,9 @@ class RMonitorRelayClient(asyncio.StreamReaderProtocol):
         """Connection lost callback."""
         self._sender_task.cancel()
         super().connection_lost(exc)
+
+    def client_connected(self):
+        pass
 
 
 class RMonitorRelay:
@@ -783,6 +817,8 @@ if __name__ == '__main__':
     if config.debug:
         loop.set_debug(True)
         logging.basicConfig(level=logging.DEBUG)
+    else:
+        logging.basicConfig(level=logging.INFO)
     loop.create_task(_rmonitor_test(config))
     loop.run_forever()
     loop.close()
