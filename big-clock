@@ -1543,6 +1543,10 @@ if __name__ == '__main__':
     parse_args()
 
     if config['gui']:
+        if hasattr(sys, "frozen") and sys.frozen == "windows_exe":
+            # py2exe helpfully discards stdout for us on Windows
+            # If running in GUI mode, discard stderr as well.
+            sys.stderr = sys.stdout
         gui_app = BigClockGUI()
         gui_app.master.title('BigClock v%s' % server_version)
 
