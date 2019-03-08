@@ -101,6 +101,7 @@ def parse_args():
             help='rmonitor server port', default=50000)
     config = vars(parser.parse_args())
     if config['gui'] == None: config['gui'] = True
+    if not have_syslog: config['syslog'] = False
     if config['syslog']:
         syslog.openlog()
 
