@@ -28,7 +28,7 @@ import csv
 import argparse
 from traceback import format_exc as format
 
-server_version = '1.1'
+server_version = '1.2'
 
 config_int = { 'http_port', 'rmon_port', 'rmrelay_port',
         'data_port', 'console_port', 'monitor_port' }
