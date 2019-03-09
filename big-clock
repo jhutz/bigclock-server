@@ -1348,7 +1348,7 @@ class BigClockGUI(tk.Frame):
         self.createWidgets()
 
     def show_hide_panes(self):
-        panes = set([self.panewin.nametowidget(tcl_obj.string)
+        panes = set([self.panewin.nametowidget(str(tcl_obj))
             for tcl_obj in self.panewin.panes()])
         for i in range(len(self.panes)):
             vis  = self.pane_vis[i].get()
@@ -1480,7 +1480,7 @@ class BigClockGUI(tk.Frame):
 
         menu = tk.Menu(self.menubar, tearoff=0)
         self.menubar.add_cascade(label="View", menu=menu)
-        self.panes = [self.panewin.nametowidget(tcl_obj.string)
+        self.panes = [self.panewin.nametowidget(str(tcl_obj))
                 for tcl_obj in self.panewin.panes()]
         self.pane_vis = []
         for i in range(len(self.panes)):
