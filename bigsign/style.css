@@ -4,6 +4,7 @@ body   { background: #ffffff; }
 
 #majors-logo { position: absolute; top: 25px; left:  25px; width: 10%; }
 #region-logo { position: absolute; top: 25px; right: 25px; width: 10%; }
+#diamond-logo { position: absolute; top: 25px; left: 200px; width: 10%; }
 #hist-logo { position: absolute; top: 35px; left:   25px; width: 9%; }
 #gpad-logo { position: absolute; top: 45px; right:  25px; width: 6%; }
 img.square {
