@@ -28,7 +28,7 @@ var f_v_srv    = document.getElementById("version_srv");
 var f_v_opts   = document.getElementById("version_opts");
 
 var css_version = "";
-var js_version = "1.1-@@@@@@-@@@@@@";
+var js_version = "1.2-@@@@@@-@@@@@@";
 var data_port = "9999";
 
 var timezone = "";

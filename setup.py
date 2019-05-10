@@ -18,7 +18,7 @@ class py2exe2msi_with_shortcuts(py2exe2msi):
 setup(
     cmdclass     = { 'py2exe2msi' : py2exe2msi_with_shortcuts },
     name         = 'Big Clock',
-    version      = '1.1',
+    version      = '1.2',
     description  = 'A big clock for race control',
     author       = 'Jeffrey Hutzelman',
     author_email = 'jhutz@cmu.edu',
