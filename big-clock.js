@@ -28,7 +28,7 @@ var f_v_srv    = document.getElementById("version_srv");
 var f_v_opts   = document.getElementById("version_opts");
 
 var css_version = "";
-var js_version = "1.2-@@@@@@-@@@@@@";
+var js_version = "1.3-@@@@@@-@@@@@@";
 var data_port = "9999";
 
 var timezone = "";
@@ -210,11 +210,14 @@ function doconnect() {
             } else if (fields[0] == '$B') {
               /* Run info: $B,id,description */
               f_run.textContent = fields[2];
-              if (!is_qual && fields[2].match(/qual/i)) {
+              var run_is_qual = (
+                                 fields[2].match(/qual|prac|test/i)
+                                 && !fields[2].match(/race/i))
+              if (!is_qual && run_is_qual) {
                 is_qual = true;
                 f_leaders.textContent = Hleaders_text;
                 f_clslead.textContent = Hclass_lead_text;
-              } else if (is_qual && !fields[2].match(/qual/i)) {
+              } else if (is_qual && !run_is_qual) {
                 is_qual = false;
                 f_leaders.textContent = Gleaders_text;
                 f_clslead.textContent = Gclass_lead_text;
