@@ -20,6 +20,7 @@ var f_message  = document.getElementById("message");
 var f_error    = document.getElementById("error");
 
 var f_version  = document.getElementById("version");
+var f_logo     = document.getElementById("logo");
 var f_options  = document.getElementById("options");
 var f_v_html   = document.getElementById("version_html");
 var f_v_css    = document.getElementById("version_css");
@@ -91,6 +92,12 @@ function process_opts(optstr) {
   f_topdiv.className = "top";
   if (opts.has("display")) {
     f_topdiv.classList.add(opts.get("display"));
+  }
+
+  if (opts.has("logo")) {
+    f_logo.style.visibility = "visible";
+  } else {
+    f_logo.style.visibility = "hidden";
   }
 
   if (opts.has("version")) {
