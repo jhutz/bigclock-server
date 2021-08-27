@@ -48,23 +48,36 @@ h1 { font-size: 40pt; text-align: center; margin: .1em; color: blue;  }
   width: 1100px; height: 640px;
   padding: 0; overflow: hidden;
 }
-#schedule table { table-layout: fixed; }
+.schedule table { table-layout: fixed; }
 
-#schedule h2 {
+.schedule h2 {
   font-size: 24pt; font-weight: bold;
   text-align: center;
   margin: 0;
   padding: 0; overflow: hidden;
   color: blue;
 }
-#schedule li { font-size: 20pt; }
-#schedule th { font-size: 20pt; }
+.schedule li { font-size: 20pt; }
+table.inner th {
+  text-align: left;
+  background-color: silver;
+}
 
+#groups {
+  position: absolute;
+  top: 160px; right: 25px;
+  width: 768px; height: 300px;
+  padding: 0; overflow: hidden;
+}
 #announce {
   position: absolute;
   top: 600px; right: 25px;
   width: 768px; height: 200px;
   padding: 0; overflow: hidden;
+}
+#announce.tall {
+  top: 480px;
+  height: 320px;
 }
 #announce h2 {
   font-size: 18pt; font-weight: bold;
