@@ -474,12 +474,12 @@ class WebSocketServer(object):
                 cloexec(conn)
                 conn.settimeout(5)
                 clientType = handshake(conn, peer)
+            	self.addClient(conn, addr, clientType)
             except Exception, e:
                 conn.close()
                 log(peer, str(type(e)))
                 print(format())
                 print(e)
-            self.addClient(conn, addr, clientType)
         log(None, 'Shutting down WS server port: %s' % port)
         return
 
