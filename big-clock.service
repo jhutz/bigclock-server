@@ -5,7 +5,7 @@ After=network-online.target
 
 [Service]
 Type=simple
-ExecStart=/usr/lib/big-clock/big-clock --no-gui --http-port=80 --syslog -
+ExecStart=/usr/lib/big-clock/big-clock --no-gui --http-port=80 --https-port=443 --cert-file=/etc/big-clock.crt --key-file=/etc/big-clock.key --syslog -
 Restart=on-failure
 
 [Install]
