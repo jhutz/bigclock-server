@@ -10,7 +10,7 @@ import UserDict
 import BaseHTTPServer
 import SimpleHTTPServer
 from SocketServer import ThreadingMixIn
-import socket
+import socket, ssl
 import zeroconf
 import struct
 import hashlib
@@ -30,10 +30,11 @@ from traceback import format_exc as format
 
 server_version = '1.2'
 
-config_int = { 'http_port', 'rmon_port', 'rmrelay_port',
+config_int = { 'http_port', 'https_port', 'rmon_port', 'rmrelay_port',
         'data_port', 'console_port', 'monitor_port' }
 config_hide = { 'gui' }
 
+ssl_mode = False
 maxMessageLen = 1024
 watchdogTimeout = 5
 wsPingPeriod = 5
@@ -81,6 +82,8 @@ def parse_args():
             help='Disable GUI console')
     parser.add_argument('--http-port',      type=int, metavar='PORT', default=8000,
             help='port for web server')
+    parser.add_argument('--https-port',      type=int, metavar='PORT', default=8443,
+            help='port for SSL web server')
     parser.add_argument('--data-port',      type=int, metavar='PORT', default=9999,
             help='port for data feed')
     parser.add_argument('--monitor-port',   type=int, metavar='PORT', default=9988,
@@ -89,6 +92,8 @@ def parse_args():
             help='port for console connections')
     parser.add_argument('--rmrelay-port',   type=int, metavar='PORT', default=9966,
             help='port for rmonitor relay connections')
+    parser.add_argument('--cert-file', help='SSL certificate file')
+    parser.add_argument('--key-file', help='SSL key file')
     if have_syslog:
         parser.add_argument('--syslog', action='store_const', const=True,
                 help='Send logs to syslog')
@@ -104,6 +109,12 @@ def parse_args():
     if not have_syslog: config['syslog'] = False
     if config['syslog']:
         syslog.openlog()
+    if ((config['cert_file'] and not config['key_file']) 
+      or (config['key_file'] and not config['cert_file'])):
+        raise Exception('--cert-file and --key-file must be used together')
+    if config['cert_file']:
+        global ssl_mode
+        ssl_mode = True
 
 def log(peer, msg):
     global config
@@ -192,6 +203,8 @@ class MyHTTPRequestHandler(SimpleHTTPServer.SimpleHTTPRequestHandler):
         self.send_header("Max-Age", "0")
         self.send_header("Set-Cookie", "bigclock_port=%d; max-age: 1" %
                 config['data_port'])
+        if ssl_mode:
+            self.send_header("Set-Cookie", "bigclock_ssl=true; max-age: 1")
         self.send_header("Cache-Control", "no-cache")
         self.send_header("Cache-Control", "must-revalidate")
 
@@ -438,6 +451,11 @@ class WebSocketServer(object):
         s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         s.bind(('', port))
         s.listen(10)
+        if ssl_mode:
+            return ssl.wrap_socket(s,
+              keyfile=config['key_file'],
+              certfile=config['cert_file'],
+              server_side=True)
         return s
 
     def _bindClient(self):
@@ -1374,20 +1392,22 @@ class BigClockGUI(tk.Frame):
         self.config_frame.columnconfigure(6, weight=1)
 
         # Configuration Labels
-        self.rmon_state = tk.Label(cf, anchor=tk.W, text="Connecting...", fg="red")
-        self.data_label = tk.Label(cf, anchor=tk.W, text="Data Feed Port:")
-        self.mon_label  = tk.Label(cf, anchor=tk.W, text="Monitor Port:")
-        self.cons_label = tk.Label(cf, anchor=tk.W, text="Console Port:")
-        self.http_label = tk.Label(cf, anchor=tk.W, text="Web Server Port:")
-        self.tz_label   = tk.Label(cf, anchor=tk.W, text="Time Zone:")
+        self.rmon_state  = tk.Label(cf, anchor=tk.W, text="Connecting...", fg="red")
+        self.data_label  = tk.Label(cf, anchor=tk.W, text="Data Feed Port:")
+        self.mon_label   = tk.Label(cf, anchor=tk.W, text="Monitor Port:")
+        self.cons_label  = tk.Label(cf, anchor=tk.W, text="Console Port:")
+        self.http_label  = tk.Label(cf, anchor=tk.W, text="Web Server Port:")
+        self.https_label = tk.Label(cf, anchor=tk.W, text="SSL Web Port:")
+        self.tz_label    = tk.Label(cf, anchor=tk.W, text="Time Zone:")
 
         # Configuration Data Fields
-        self.rmon_port  = tk.Entry(cf, width=6, textvariable=config.var('rmon_port'))
-        self.http_entry = tk.Entry(cf, width=6, textvariable=config.var('http_port'))
-        self.data_entry = tk.Entry(cf, width=6, textvariable=config.var('data_port'))
-        self.cons_entry = tk.Entry(cf, width=6, textvariable=config.var('console_port'))
-        self.mon_entry  = tk.Entry(cf, width=6, textvariable=config.var('monitor_port'))
-        self.tz_entry   = tk.Entry(cf, textvariable=config.var('timezone'))
+        self.rmon_port   = tk.Entry(cf, width=6, textvariable=config.var('rmon_port'))
+        self.http_entry  = tk.Entry(cf, width=6, textvariable=config.var('http_port'))
+        self.https_entry = tk.Entry(cf, width=6, textvariable=config.var('https_port'))
+        self.data_entry  = tk.Entry(cf, width=6, textvariable=config.var('data_port'))
+        self.cons_entry  = tk.Entry(cf, width=6, textvariable=config.var('console_port'))
+        self.mon_entry   = tk.Entry(cf, width=6, textvariable=config.var('monitor_port'))
+        self.tz_entry    = tk.Entry(cf, textvariable=config.var('timezone'))
 
         # Reconnect button
         self.reconn_btn = tk.Button(cf, text='Reconnect', command=restart_relay)
@@ -1419,8 +1439,10 @@ class BigClockGUI(tk.Frame):
         self.cons_entry.grid(row=1, column=5, sticky=tk.W)
         self.http_label.grid(row=2, column=0, sticky=tk.W)
         self.http_entry.grid(row=2, column=1, sticky=tk.W)
-        self.tz_label.grid  (row=2, column=2, sticky=tk.W)
-        self.tz_entry.grid  (row=2, column=3, sticky=tk.W, columnspan=3)
+        self.https_label.grid(row=2, column=2, sticky=tk.W)
+        self.https_entry.grid(row=2, column=3, sticky=tk.W)
+        self.tz_label.grid  (row=2, column=4, sticky=tk.W)
+        self.tz_entry.grid  (row=2, column=5, sticky=tk.W, columnspan=3)
         self.reconn_btn.grid(row=0, column=6, sticky=tk.NE)
         self.config_frame.grid(sticky=tk.N+tk.W+tk.E)
 
@@ -1566,6 +1588,16 @@ if __name__ == '__main__':
     httpd_thr.name = 'HTTP Listener'
     httpd_thr.daemon = True
 
+    if ssl_mode:
+        httpsd = MyHTTPServer(('', config['https_port']), MyHTTPRequestHandler)
+        httpsd.socket = ssl.wrap_socket(httpsd.socket,
+          keyfile=config['key_file'],
+          certfile=config['cert_file'],
+          server_side=True)
+        httpsd_thr = threading.Thread(target=httpsd.serve_forever)
+        httpsd_thr.name = 'HTTP SSL Listener'
+        httpsd_thr.daemon = True
+
     def start_servers():
         global addrmapper
         addrmapper = AddressMapper(ws)
@@ -1575,6 +1607,7 @@ if __name__ == '__main__':
         rmrelay_acceptor.startServer()
         rmon_relay.start()
         httpd_thr.start()
+        if ssl_mode: httpsd_thr.start()
 
     if config['gui']:
         gui_app.master.after_idle(start_servers)
@@ -1585,6 +1618,7 @@ if __name__ == '__main__':
         rmon_relay.wait()
 
     httpd.shutdown()
+    if ssl_mode: httpsd.shutdown()
     console_acceptor.close()
     monitor_acceptor.close()
     rmrelay_acceptor.close()

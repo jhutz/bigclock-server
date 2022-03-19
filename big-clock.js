@@ -31,6 +31,7 @@ var f_v_opts   = document.getElementById("version_opts");
 var css_version = "";
 var js_version = "1.3-@@@@@@-@@@@@@";
 var data_port = "9999";
+var ssl_mode = false;
 
 var timezone = "";
 var server_tz = "";
@@ -167,7 +168,8 @@ function heartbeat(e,s) {
 
 function doconnect() {
     try {
-        var host = "ws://" + window.location.hostname + ":" + data_port + "/";
+        var scheme = ssl_mode ? "wss://" : "ws://"
+        var host = scheme + window.location.hostname + ":" + data_port + "/";
         console.log("Host:", host);
         var s = new WebSocket(host);
         s.onopen = function (e) {
@@ -413,6 +415,9 @@ function onLoad() {
 
   var port = getCookie('bigclock_port');
   if (port != null) data_port = port;
+
+  var bit = getCookie('bigclock_ssl');
+  ssl_mode = (bit != null);
 
   process_opts();
   show_local_time();
