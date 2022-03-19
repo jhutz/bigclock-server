@@ -224,7 +224,17 @@ class MyHTTPRequestHandler(SimpleHTTPServer.SimpleHTTPRequestHandler):
                     self, source, outputfile)
         s = os.fstat(source.fileno())
         stamp = time.strftime('%y%m%d-%H%M%S', time.localtime(s.st_mtime))
-        outputfile.write(source.read().replace('@@@@@@-@@@@@@',stamp))
+        text = source.read()
+        text = text.replace('@@@@@@-@@@@@@', stamp)
+        if self.server.is_ssl:
+            portstr = '%10s' % ('"%d"' % config['ssl_data_port'])
+            text = text.replace('@@@port@@@', portstr)
+            text = text.replace('@@@ssl@@@', '%9s' % 'true')
+        else:
+            portstr = '%10s' % ('"%d"' % config['data_port'])
+            text = text.replace('@@@port@@@', portstr)
+            text = text.replace('@@@ssl@@@', '%9s' % 'false')
+        outputfile.write(text)
 
 class MyHTTPServer(ThreadingMixIn, BaseHTTPServer.HTTPServer):
     def __init__(self, *args, **kwargs):

@@ -30,8 +30,8 @@ var f_v_opts   = document.getElementById("version_opts");
 
 var css_version = "";
 var js_version = "1.3-@@@@@@-@@@@@@";
-var data_port = "9999";
-var ssl_mode = false;
+var data_port = @@@port@@@;
+var ssl_mode = @@@ssl@@@;
 
 var timezone = "";
 var server_tz = "";
@@ -417,7 +417,7 @@ function onLoad() {
   if (port != null) data_port = port;
 
   var bit = getCookie('bigclock_ssl');
-  ssl_mode = (bit != null);
+  if (bit != null) ssl_mode = true;
 
   process_opts();
   show_local_time();
