@@ -490,6 +490,7 @@ class WebSocketServer(object):
                     continue
                 print(format())
                 print(e)
+                if isinstance(e, ssl.SSLError): continue
                 self.SERVER_ACTIVE = False
                 return
             peer = '%s:%d' % addr
