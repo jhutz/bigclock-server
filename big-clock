@@ -204,11 +204,11 @@ class MyHTTPRequestHandler(SimpleHTTPServer.SimpleHTTPRequestHandler):
         self.send_header("Expires", "Thu, 01 Dec 1994 16:00:00 GMT")
         self.send_header("Max-Age", "0")
         if self.server.is_ssl:
-            self.send_header("Set-Cookie", "bigclock_port=%d; max-age: 1" %
+            self.send_header("Set-Cookie", "bigclock_port=%d; max-age=1" %
                 config['ssl_data_port'])
-            self.send_header("Set-Cookie", "bigclock_ssl=true; max-age: 1")
+            self.send_header("Set-Cookie", "bigclock_ssl=true; max-age=1")
         else:
-            self.send_header("Set-Cookie", "bigclock_port=%d; max-age: 1" %
+            self.send_header("Set-Cookie", "bigclock_port=%d; max-age=1" %
                 config['data_port'])
         self.send_header("Cache-Control", "no-cache")
         self.send_header("Cache-Control", "must-revalidate")
