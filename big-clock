@@ -496,7 +496,10 @@ class WebSocketServer(object):
             log(peer, 'Client connected')
             try:
                 cloexec(conn)
-                conn.settimeout(5)
+                if is_ssl:
+                    conn.settimeout(30)
+                else:
+                    conn.settimeout(5)
                 clientType = handshake(conn, peer)
             	self.addClient(conn, addr, clientType)
             except Exception, e:
@@ -562,7 +565,7 @@ class WebSocketServer(object):
 
             except socket.timeout:
                 continue
-            except EOFError:
+            except EOFError, ssl.SSLEOFError:
                 log(client['peer'], 'disconnected')
                 self._remove(client)
                 break
