@@ -31,7 +31,7 @@ from traceback import format_exc as format
 server_version = '1.2'
 
 config_int = { 'http_port', 'https_port', 'rmon_port', 'rmrelay_port',
-        'data_port', 'console_port', 'monitor_port' }
+        'data_port', 'ssl_data_port', 'console_port', 'monitor_port' }
 config_hide = { 'gui' }
 
 ssl_mode = False
@@ -86,6 +86,8 @@ def parse_args():
             help='port for SSL web server')
     parser.add_argument('--data-port',      type=int, metavar='PORT', default=9999,
             help='port for data feed')
+    parser.add_argument('--ssl-data-port',      type=int, metavar='PORT', default=9443,
+            help='port for SSL data feed')
     parser.add_argument('--monitor-port',   type=int, metavar='PORT', default=9988,
             help='port for monitor connections')
     parser.add_argument('--console-port',   type=int, metavar='PORT', default=9977,
@@ -201,10 +203,13 @@ class MyHTTPRequestHandler(SimpleHTTPServer.SimpleHTTPRequestHandler):
         self.send_header("Pragma", "no-cache")
         self.send_header("Expires", "Thu, 01 Dec 1994 16:00:00 GMT")
         self.send_header("Max-Age", "0")
-        self.send_header("Set-Cookie", "bigclock_port=%d; max-age: 1" %
-                config['data_port'])
         if ssl_mode:
+            self.send_header("Set-Cookie", "bigclock_port=%d; max-age: 1" %
+                config['ssl_data_port'])
             self.send_header("Set-Cookie", "bigclock_ssl=true; max-age: 1")
+        else:
+            self.send_header("Set-Cookie", "bigclock_port=%d; max-age: 1" %
+                config['data_port'])
         self.send_header("Cache-Control", "no-cache")
         self.send_header("Cache-Control", "must-revalidate")
 
@@ -444,27 +449,28 @@ class WebSocketServer(object):
             print(format())
             print(e)
 
-    def _setupSocket(self, port):
+    def _setupSocket(self, port, is_ssl=False):
         s = socket.socket()
         cloexec(s)
         s.settimeout(5)
         s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         s.bind(('', port))
         s.listen(10)
-        if ssl_mode:
+        if is_ssl:
             return ssl.wrap_socket(s,
               keyfile=config['key_file'],
               certfile=config['cert_file'],
               server_side=True)
         return s
 
-    def _bindClient(self):
-        port = config['data_port']
-        s = self._setupSocket(port)
+    def _bindClient(self, is_ssl=False):
+        cfg_key = 'ssl_data_port' if is_ssl else 'data_port'
+        port = config[cfg_key]
+        s = self._setupSocket(port, is_ssl=is_ssl)
         log(None, 'Data feed listening on port %d' % port)
         while self.SERVER_ACTIVE:
-            if port != config['data_port']:
-                newport = config['data_port']
+            if port != config[cfg_key]:
+                newport = config[cfg_key]
                 try:
                     newsock = self._setupSocket(newport)
                     try: s.close()
@@ -683,6 +689,11 @@ class WebSocketServer(object):
         ws_server_thr.name = 'WS Listener'
         ws_server_thr.daemon = True
         ws_server_thr.start()
+        if ssl_mode:
+            wss_server_thr = threading.Thread(target=self._bindClient, args=(True,))
+            wss_server_thr.name = 'WS SSL Listener'
+            wss_server_thr.daemon = True
+            wss_server_thr.start()
 
     def sendData(self, data, fin=True, opcode=1, masking_key=False,
             clients=None, allClients=False, fields=None):
@@ -1389,11 +1400,12 @@ class BigClockGUI(tk.Frame):
         self.config_frame.rowconfigure(0, minsize=27)
         self.config_frame.rowconfigure(1, minsize=27)
         self.config_frame.rowconfigure(2, minsize=27)
-        self.config_frame.columnconfigure(6, weight=1)
+        self.config_frame.columnconfigure(8, weight=1)
 
         # Configuration Labels
         self.rmon_state  = tk.Label(cf, anchor=tk.W, text="Connecting...", fg="red")
         self.data_label  = tk.Label(cf, anchor=tk.W, text="Data Feed Port:")
+        self.datas_label = tk.Label(cf, anchor=tk.W, text="SSL Data Port:")
         self.mon_label   = tk.Label(cf, anchor=tk.W, text="Monitor Port:")
         self.cons_label  = tk.Label(cf, anchor=tk.W, text="Console Port:")
         self.http_label  = tk.Label(cf, anchor=tk.W, text="Web Server Port:")
@@ -1405,6 +1417,7 @@ class BigClockGUI(tk.Frame):
         self.http_entry  = tk.Entry(cf, width=6, textvariable=config.var('http_port'))
         self.https_entry = tk.Entry(cf, width=6, textvariable=config.var('https_port'))
         self.data_entry  = tk.Entry(cf, width=6, textvariable=config.var('data_port'))
+        self.datas_entry = tk.Entry(cf, width=6, textvariable=config.var('ssl_data_port'))
         self.cons_entry  = tk.Entry(cf, width=6, textvariable=config.var('console_port'))
         self.mon_entry   = tk.Entry(cf, width=6, textvariable=config.var('monitor_port'))
         self.tz_entry    = tk.Entry(cf, textvariable=config.var('timezone'))
@@ -1431,19 +1444,24 @@ class BigClockGUI(tk.Frame):
         # Configuration Layout
         self.rmon_port.grid (row=0, column=3, sticky=tk.W)
         self.rmon_state.grid(row=0, column=4, sticky=tk.W, columnspan=2)
+
         self.data_label.grid(row=1, column=0, sticky=tk.W)
         self.data_entry.grid(row=1, column=1, sticky=tk.W)
-        self.mon_label.grid (row=1, column=2, sticky=tk.W)
-        self.mon_entry.grid (row=1, column=3, sticky=tk.W)
-        self.cons_label.grid(row=1, column=4, sticky=tk.W)
-        self.cons_entry.grid(row=1, column=5, sticky=tk.W)
+        self.datas_label.grid(row=1, column=2, sticky=tk.W)
+        self.datas_entry.grid(row=1, column=3, sticky=tk.W)
+        self.mon_label.grid (row=1, column=4, sticky=tk.W)
+        self.mon_entry.grid (row=1, column=5, sticky=tk.W)
+        self.cons_label.grid(row=1, column=6, sticky=tk.W)
+        self.cons_entry.grid(row=1, column=7, sticky=tk.W)
+
         self.http_label.grid(row=2, column=0, sticky=tk.W)
         self.http_entry.grid(row=2, column=1, sticky=tk.W)
         self.https_label.grid(row=2, column=2, sticky=tk.W)
         self.https_entry.grid(row=2, column=3, sticky=tk.W)
         self.tz_label.grid  (row=2, column=4, sticky=tk.W)
         self.tz_entry.grid  (row=2, column=5, sticky=tk.W, columnspan=3)
-        self.reconn_btn.grid(row=0, column=6, sticky=tk.NE)
+
+        self.reconn_btn.grid(row=0, column=7, sticky=tk.NE, columnspan=2)
         self.config_frame.grid(sticky=tk.N+tk.W+tk.E)
 
         self.columnconfigure(0, weight=1)
