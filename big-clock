@@ -508,6 +508,7 @@ class WebSocketServer(object):
             log(peer, 'Client connected')
             try:
                 cloexec(conn)
+                conn.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
                 if is_ssl:
                     conn.settimeout(30)
                 else:
