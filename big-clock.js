@@ -94,6 +94,10 @@ function process_opts(optstr) {
     f_topdiv.classList.add(opts.get("display"));
   }
 
+  if (opts.has("zoom")) {
+    f_topdiv.style.zoom = opts.get("zoom");
+  }
+
   if (opts.has("logo")) {
     f_logo.style.visibility = "visible";
   } else {
