@@ -16,6 +16,7 @@ var f_elapsed  = document.getElementById("elapsed");
 var f_timeleft = document.getElementById("timeleft");
 var f_leaders  = document.getElementById("leaders");
 var f_clslead  = document.getElementById("clslead");
+var f_progress = document.getElementById("progress");
 var f_message  = document.getElementById("message");
 var f_error    = document.getElementById("error");
 
@@ -48,6 +49,9 @@ var Gleaders_text = "";
 var Hclass_lead_text = "";
 var Hleaders = [];
 var Hleaders_text = "";
+var last_passing = new Object;
+var progress_start = undefined;
+var progress_length = undefined;
 var tod_is_local = false;
 var opts_changed = false;
 var hb_timeout;
@@ -129,6 +133,18 @@ function show_local_time () {
   f_date.textContent = now.toLocaleDateString(undefined, dayopts);
 }
 
+function parse_time (t) {
+  found = t.match(/^(\d+):(\d+):(\d+)(?:\.(\d+))?$/)
+  if (found === undefined) {
+    return undefined;
+  }
+  t = (found[1] * 3600) + (found[2] * 60) + (found[3] * 1);
+  if (found[4] !== undefined) {
+    t += (found[4] * .001);
+  }
+  return t
+}
+
 function showMessage(msg) {
   f_message.textContent = msg
 }
@@ -143,6 +159,41 @@ function setFlag(flag) {
     f_flag.className = flag + "Flag";
     f_flagtext.textContent = flag + " Flag";
   }
+}
+
+function updateProgress(elapsed) {
+  msg = progress_start + ' / ' + progress_length + ' @ ' + elapsed;
+  if (progress_start === undefined) {
+    f_progress.style.width = '0%';
+  } else {
+    now = parse_time(elapsed);
+    width = (now - progress_start) / (progress_length);
+    msg = msg + ' -> ' + now + ' / ' + width;
+    if (width < 0) {
+      f_progress.style.width = '0%';
+    } else if (width > 1) {
+      width = 1;
+      f_progress.style.backgroundColor = 'yellow';
+    } else {
+      f_progress.style.backgroundColor = 'green';
+    }
+    f_progress.style.width = (width * 100) + '%';
+  }
+  /* showMessage(msg); */
+}
+
+function computePassing(passing) {
+  progress_start = undefined;
+  progress_length = undefined;
+
+  if (passing !== undefined) {
+    length = parse_time(passing.laptime);
+    if (length > 0) {
+      progress_start = parse_time(passing.elapsed);
+      progress_length = length;
+    }
+  }
+  updateProgress(f_elapsed.textContent);
 }
 
 function showError(msg) {
@@ -248,11 +299,15 @@ function doconnect() {
               f_elapsed  .textContent = fields[4];
               tod_is_local = false;
               setFlag(fields[5]);
+              updateProgress(fields[4]);
 
             } else if (fields[0] == '$G') {
               var leaderstr;
               /* race info: $G,pos,regcode,laps,time */
-              if (fields[1] == 1) f_laps.textContent = fields[3];
+              if (fields[1] == 1) {
+                f_laps.textContent = fields[3];
+                computePassing(last_passing[fields[2]])
+              }
               /* ignore cars with 0 time, except overall leader */
               if (fields[1] > 1 && fields[4] == "00:00:00.000") {
                 Gleaders[fields[1]-1] = undefined;
@@ -347,6 +402,15 @@ function doconnect() {
                 }
               }
 
+            } else if (fields[0] == '$J') {
+              last_passing[fields[1]] = {
+                laptime: fields[2],
+                elapsed: fields[3]
+              }
+              if (fields[1] == Gleaders[0]) {
+                computePassing(last_passing[fields[0]])
+              }
+
             } else if (fields[0] == '$I') {
               tod_is_local = false;
               f_tod.textContent = fields[1];
@@ -375,6 +439,10 @@ function doconnect() {
               Hclass_lead_text = "";
               Hleaders = [];
               Hleaders_text = "";
+              last_passing = new Object;
+              progress_start = undefined
+              progress_length = undefined
+              updateProgress(undefined);
             } else if (fields[0] == ':E') {
               server_error = fields[1];
               showError(server_error);

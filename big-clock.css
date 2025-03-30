@@ -51,10 +51,13 @@ table.footer   th { font-size: 24pt;  font-weight: normal; }
 
 col.laps     { width: 40%; }
 col.time     { width: 60%; }
-col.leaders  { width: 50%; }
-col.tod      { width: 50%; }
+col.leaders  { width: 30%; }
+col.progress { width: 40%; }
+col.tod      { width: 30%; }
 th.leaders   { text-align: left; }
+th.progress  { border: thin solid black; }
 th.tod       { text-align: right; }
+div.progress { background-color: green; height: 24pt; width: 25%; }
 
 div#flag     {
   position: absolute; top: 0; right: 0;
